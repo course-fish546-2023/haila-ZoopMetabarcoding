@@ -1,1 +1,3 @@
 # haila-ZoopMetabarcoding
+
+This is the repository for my project analyzing metabarcoding data from zooplankton in Puget Sound from 2018-2020. Zooplankton samples were collected using vertical and oblique net tows at seven stations in April, July, and September. Five mitochondrial markers were used: LrCOI, Mol16S, Cop16S, MiFish12S, and FishCytb. I will create a bioinformatics pipeline that identifies the zooplankton taxa found in each sample.
