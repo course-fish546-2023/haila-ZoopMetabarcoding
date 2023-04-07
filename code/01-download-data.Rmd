@@ -1,0 +1,21 @@
+---
+title: "01-download-data"
+output: html_document
+date: "2023-04-07"
+---
+
+move files into one folder
+```{bash}
+cd ../data
+find . -name '*.gz' -exec mv {} ../Files/ \;
+```
+
+
+create checksums file for all fastq files in data folder
+```{bash}
+cd ../data
+shasum data/*fastq.gz > fastq_checksums.sha
+cat fastq_checksums.sha
+```
+
+
