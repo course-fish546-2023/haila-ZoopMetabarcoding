@@ -6,4 +6,6 @@ I downloaded fastq files for the LrCOI marker onto my local machine in the folde
 
 I then uploaded the zipped file into Raven using the Rstudio upload function
 
-I am currently trying to figure out how to move files from multiple depths of subfolders into one folder before I can get the hash values.
+Hash values are located in haila-ZoopMetabarcodning/data/fastq.checksums.sha
+
+The code 01-download-data checks current versions of the file against the original version.

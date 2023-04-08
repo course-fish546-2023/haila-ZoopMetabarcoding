@@ -7,15 +7,22 @@ date: "2023-04-07"
 move files into one folder
 ```{bash}
 cd ../data
-find . -name '*.gz' -exec mv {} ../Files/ \;
+find . -name '*.gz' -exec mv {} ../data/ \;
 ```
 
 
 create checksums file for all fastq files in data folder
 ```{bash}
 cd ../data
-shasum data/*fastq.gz > fastq_checksums.sha
+shasum ../data/*.gz > fastq_checksums.sha
 cat fastq_checksums.sha
 ```
+
+#check if files match original
+```{bash}
+cd ../data
+shasum -c fastq_checksums.sha
+```
+
 
 
