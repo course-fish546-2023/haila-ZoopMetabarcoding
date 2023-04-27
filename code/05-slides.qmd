@@ -5,4 +5,59 @@ format: revealjs
 editor: visual
 ---
 
-## Objective
+## Dataset
+
+::: incremental
+-   Washington Ocean Acidification Center Cruises
+-   2018-2020
+-   April, July, September
+-   7 sites in Puget Sound
+-   zooplankton samples from net tows
+-   metabarcoding marker: mitochondrial cytochrome C oxidase subunit I (COI)
+:::
+
+## Stations
+
+![](WOAC-station.png)
+
+## Project Goals
+
+::: incremental
+1.  Taxonomically ID zooplankton communities using sequence reads
+
+2.  Compare zooplankton communities among
+
+-   years
+-   seasons
+-   locations
+:::
+
+## Methods to-date
+
+1.  Download data
+2.  Trim primers using cutadapt (in progress)
+
+## Trimming primers
+
+```{r, eval=FALSE}
+#| echo: true
+#| code-line-numbers: "8-9"
+#set file path
+path <- "../data"
+#make matched list of forward and reverse reads
+fnFs <- sort(list.files(path, pattern = "_R1_001.fastq.gz", full.names = TRUE))
+fnRs <- sort(list.files(path, pattern = "_R2_001.fastq.gz", full.names = TRUE))
+
+#specify primer sequences
+FWD <- "GGWACWGGWTGAACWGTWTAYCCYCC"  
+REV <- "TAIACYTCIGGRTGICCRAARAAYCA "  
+```
+
+## Methods for the next four weeks
+
+1.  Filter reads based on quality using DADA2
+2.  Merge forward and reverse reads
+3.  Run BLASTn against the NCBI nt database as a reference
+4.  Calculate diversity index for each sample
+5.  Make NMDS plots colored by year, month, and location
+6.  Make barplots to compare relative abundances of taxa among samples
