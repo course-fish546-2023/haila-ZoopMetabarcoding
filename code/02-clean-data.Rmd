@@ -4,57 +4,32 @@ output: html_document
 date: "2023-04-25"
 ---
 
-Rename files to better represent forward and reverse reads
+
+
+list files for forward and reverse reads
 ```{r}
 #set file path
 path <- "../data"
-
+ls
 #make matched list of forward and reverse reads
 fnFs <- sort(list.files(path, pattern = "_R1_001.fastq.gz", full.names = TRUE))
 fnRs <- sort(list.files(path, pattern = "_R2_001.fastq.gz", full.names = TRUE))
 
 ```
 
-explore the data
+
+check if files have forward primer sequence
 ```{bash}
 cd ../data
-ls
+grep -r GGWACWGGWTGAACWGTWTAYCCYCC .
 ```
 
 
-Identify forward and reverse primer sequences
-```{r}
-FWD <- "GGWACWGGWTGAACWGTWTAYCCYCC"  
-REV <- "TAIACYTCIGGRTGICCRAARAAYCA"  
-```
+install cutadapt software
+```{bash}
+#download miniconda from url
+curl -O https://repo.anaconda.com/miniconda/Miniconda3-py38_23.3.1-0-Linux-x86_64.sh
 
-Verify orientation and presence of primers
-```{r}
-allOrients <- function(primer) {
-    require(Biostrings)
-    dna <- DNAString(primer)
-    orients <- c(Forward = dna, Complement = complement(dna), Reverse = reverse(dna), 
-        RevComp = reverseComplement(dna))
-    return(sapply(orients, toString)) 
-}
-FWD.orients <- allOrients(FWD)
-REV.orients <- allOrients(REV)
-FWD.orients
-```
-```{r}
-fnFs.filtN <- file.path(path, "filtN", basename(fnFs)) # Put N-filterd files in filtN/ subdirectory
-fnRs.filtN <- file.path(path, "filtN", basename(fnRs))
-filterAndTrim(fnFs, fnFs.filtN, fnRs, fnRs.filtN, maxN = 0, multithread = TRUE)
-```
-```{r}
-primerHits <- function(primer, fn) {
-    # Counts number of reads in which the primer is found
-    nhits <- vcountPattern(primer, sread(readFastq(fn)), fixed = FALSE)
-    return(sum(nhits > 0))
-}
-rbind(FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = fnFs.filtN[[1]]), 
-    FWD.ReverseReads = sapply(FWD.orients, primerHits, fn = fnRs.filtN[[1]]), 
-    REV.ForwardReads = sapply(REV.orients, primerHits, fn = fnFs.filtN[[1]]), 
-    REV.ReverseReads = sapply(REV.orients, primerHits, fn = fnRs.filtN[[1]]))
+Miniconda3-latest-Linux-x86_64.sh
 ```
 
