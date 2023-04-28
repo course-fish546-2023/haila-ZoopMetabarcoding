@@ -1,7 +1,10 @@
 ---
 title: "Research Project Presentation"
 author: Haila Schultz
-format: revealjs
+format: 
+  revealjs:
+    theme: simple
+    scrollable: true
 editor: visual
 ---
 
@@ -9,12 +12,17 @@ editor: visual
 
 ::: incremental
 -   Washington Ocean Acidification Center Cruises
--   2018-2020
--   April, July, September
--   7 sites in Puget Sound
--   zooplankton samples from net tows
+-   Paired zooplankton samples from net tows: morphology and metabarcoding
 -   metabarcoding marker: mitochondrial cytochrome C oxidase subunit I (COI)
 :::
+
+## Number of Samples
+
+| Month | 2019 | 2020 | 2020 |
+|-------|------|------|------|
+| April | 7    | 7    | 7    |
+| July  | 7    | 7    | 7    |
+| Sept  | 7    | 7    | 7    |
 
 ## Stations
 
@@ -41,7 +49,7 @@ editor: visual
 
 ```{r, eval=FALSE}
 #| echo: true
-#| code-line-numbers: "8-9"
+#| code-line-numbers: "7-9"
 #set file path
 path <- "../data"
 #make matched list of forward and reverse reads
@@ -50,14 +58,23 @@ fnRs <- sort(list.files(path, pattern = "_R2_001.fastq.gz", full.names = TRUE))
 
 #specify primer sequences
 FWD <- "GGWACWGGWTGAACWGTWTAYCCYCC"  
-REV <- "TAIACYTCIGGRTGICCRAARAAYCA "  
+REV <- "TAIACYTCIGGRTGICCRAARAAYCA"  
+```
+
+## Take a look at one file
+
+```{r, engine='bash', echo=TRUE, message=FALSE}
+cd ../data
+zcat 2018APRP402ObB-COI-59samples_S191_L001_R1_001.fastq.gz | head -n 2
 ```
 
 ## Methods for the next four weeks
 
+::: incremental
 1.  Filter reads based on quality using DADA2
 2.  Merge forward and reverse reads
 3.  Run BLASTn against the NCBI nt database as a reference
 4.  Calculate diversity index for each sample
 5.  Make NMDS plots colored by year, month, and location
 6.  Make barplots to compare relative abundances of taxa among samples
+:::

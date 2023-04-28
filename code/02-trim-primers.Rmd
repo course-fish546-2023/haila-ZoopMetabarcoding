@@ -1,8 +1,27 @@
 ---
-title: "02-clean-data"
+title: "02-trim-primers"
 output: html_document
 date: "2023-04-25"
 ---
+
+# Install packages and software
+
+To get cutadapt, I downloaded the miniconda installer using curl 
+
+install cutadapt software
+```{bash}
+#download miniconda from url
+curl -O https://repo.anaconda.com/miniconda/Miniconda3-py38_23.3.1-0-Linux-x86_64.sh
+
+```
+
+and then moved to the directory it was in by typing `cd code` in the terminal. I then typed bash Miniconda3-latest-Linux-x86_64.sh in the terminal to start the setup process. Conda is located in: /home/shared/8TB_HDD_02/schulh2/miniconda3. I checked taht installation worked by typing `conda list` in the terminal. In the terminal I then typed:
+`conda config --add channels bioconda
+conda config --add channels conda-forge
+conda create -n cutadaptenv cutadapt`
+
+To activate the conda environment, in the terminal I typed `conda activate cutadaptenv`
+
 
 install packages
 ```{r}
@@ -14,6 +33,8 @@ library("dada2")
 ```
 
 
+# Make lists of forward and reverse read files
+
 list files for forward and reverse reads
 ```{r}
 #set file path
@@ -24,8 +45,11 @@ fnRs <- sort(list.files(path, pattern = "_R2_001.fastq.gz", full.names = TRUE))
 
 #specify primer sequences
 FWD <- "GGWACWGGWTGAACWGTWTAYCCYCC"  
-REV <- "TAIACYTCIGGRTGICCRAARAAYCA "  
+REV <- "TAIACYTCIGGRTGICCRAARAAYCA"  
 ```
+
+
+# Check if primers are actually in data
 
 get orientations of primers
 ```{r}
@@ -69,15 +93,44 @@ rbind(FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = fnFs.filtN[[1]]),
 check if files have forward primer sequence
 ```{bash}
 cd ../data
-grep -r GGWACWGGWTGAACWGTWTAYCCYCC .
+grep -r GGAACTGGTTGAACTGTATATCCTCC .
+```
+
+take a look at data
+
+```{bash}
+cd ../data
+zcat 2018APRP402ObB-COI-59samples_S191_L001_R1_001.fastq.gz | head -n 2
+```
+
+# Remove Primers
+
+Tell R the path to the cutadapt command
+
+```{r}
+cutadapt <- "/home/shared/8TB_HDD_02/schulh2/miniconda3/envs/cutadaptenv/bin/cutadapt" 
+system2(cutadapt, args = "--version") 
 ```
 
 
-install cutadapt software
-```{bash}
-#download miniconda from url
-curl -O https://repo.anaconda.com/miniconda/Miniconda3-py38_23.3.1-0-Linux-x86_64.sh
+```{r}
+path.cut <- file.path(path, "cutadapt")
+if(!dir.exists(path.cut)) dir.create(path.cut)
+fnFs.cut <- file.path(path.cut, basename(fnFs))
+fnRs.cut <- file.path(path.cut, basename(fnRs))
 
-Miniconda3-latest-Linux-x86_64.sh
+FWD.RC <- dada2:::rc(FWD)
+REV.RC <- dada2:::rc(REV)
+# Trim FWD and the reverse-complement of REV off of R1 (forward reads)
+R1.flags <- paste("-g", FWD, "-a", REV.RC) 
+# Trim REV and the reverse-complement of FWD off of R2 (reverse reads)
+R2.flags <- paste("-G", REV, "-A", FWD.RC) 
+# Run Cutadapt
+for(i in seq_along(fnFs)) {
+  system2(cutadapt, args = c(R1.flags, R2.flags, "-n", 2, # -n 2 required to remove FWD and REV from reads
+                             "-o", fnFs.cut[i], "-p", fnRs.cut[i], # output files
+                             fnFs.filtN[i], fnRs.filtN[i])) # input files
+}
+
 ```
 
