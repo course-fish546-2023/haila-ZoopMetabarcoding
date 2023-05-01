@@ -18,7 +18,7 @@ editor: visual
 
 ## Number of Samples
 
-| Month | 2019 | 2020 | 2020 |
+| Month | 2018 | 2019 | 2020 |
 |-------|------|------|------|
 | April | 7    | 7    | 7    |
 | July  | 7    | 7    | 7    |

@@ -22,6 +22,19 @@ conda create -n cutadaptenv cutadapt`
 
 To activate the conda environment, in the terminal I typed `conda activate cutadaptenv`
 
+Make cutadapt work in r
+```{r}
+#change path
+old_path <- Sys.getenv("PATH")
+
+Sys.setenv(PATH = paste(old_path, "/home/shared/8TB_HDD_02/schulh2/miniconda3/envs/cutadaptenv/bin/cutadapt", sep = ";"))
+
+system2('cutadapt', args = "--version")
+```
+```{bash}
+cutadapt --version
+```
+
 
 install packages
 ```{r}
@@ -100,7 +113,7 @@ take a look at data
 
 ```{bash}
 cd ../data
-zcat 2018APRP402ObB-COI-59samples_S191_L001_R1_001.fastq.gz | head -n 2
+zcat 2019APRP22Ve-COI-48samples_S165_L001_R2_001.fastq.gz | head -n 2
 ```
 
 # Remove Primers
@@ -113,24 +126,22 @@ system2(cutadapt, args = "--version")
 ```
 
 
-```{r}
-path.cut <- file.path(path, "cutadapt")
-if(!dir.exists(path.cut)) dir.create(path.cut)
-fnFs.cut <- file.path(path.cut, basename(fnFs))
-fnRs.cut <- file.path(path.cut, basename(fnRs))
 
-FWD.RC <- dada2:::rc(FWD)
-REV.RC <- dada2:::rc(REV)
-# Trim FWD and the reverse-complement of REV off of R1 (forward reads)
-R1.flags <- paste("-g", FWD, "-a", REV.RC) 
-# Trim REV and the reverse-complement of FWD off of R2 (reverse reads)
-R2.flags <- paste("-G", REV, "-A", FWD.RC) 
-# Run Cutadapt
-for(i in seq_along(fnFs)) {
-  system2(cutadapt, args = c(R1.flags, R2.flags, "-n", 2, # -n 2 required to remove FWD and REV from reads
-                             "-o", fnFs.cut[i], "-p", fnRs.cut[i], # output files
-                             fnFs.filtN[i], fnRs.filtN[i])) # input files
-}
+# use cutadapt
+```{bash}
+#-m filters length of reads, -q filters by minimum quality score, --max-n=3 allows for a maximum of 3 Ns
+cd ../data
+for file in *.gz; do
+    # Ftrimmed step
+    cutadapt -g GGWACWGGWTGAACWGTWTAYCCYCC -m 150 -q 20,20 --max-n=3 --discard-untrimmed -o "${file%.gz}.Ftrimmed.fastq.gz" "$file"
+    
+    # Rtrimmed step
+    cutadapt -a TAIACYTCIGGRTGICCRAARAAYCA -m 150 -q 20,20 --max-n=3 --discard-untrimmed -o "${file%.gz}.Rtrimmed.fasta.gz" "${file%.gz}.Ftrimmed.fastq.gz"
+done
+
+# Statistics step
+gz_stats *.Ftrimmed.fastq.gz > Ftrimmed.stats
+fasta_gz_stats *.Rtrimmed.fasta.gz > Rtrimmed.stats
 
 ```
 
