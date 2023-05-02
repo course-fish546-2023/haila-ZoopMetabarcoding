@@ -11,29 +11,36 @@ To get cutadapt, I downloaded the miniconda installer using curl
 install cutadapt software
 ```{bash}
 #download miniconda from url
-curl -O https://repo.anaconda.com/miniconda/Miniconda3-py38_23.3.1-0-Linux-x86_64.sh
+cd ../software
+curl -O https://repo.anaconda.com/miniconda/Miniconda3-py310_23.3.1-0-MacOSX-arm64.sh
 
 ```
 
-and then moved to the directory it was in by typing `cd code` in the terminal. I then typed bash Miniconda3-latest-Linux-x86_64.sh in the terminal to start the setup process. Conda is located in: /home/shared/8TB_HDD_02/schulh2/miniconda3. I checked taht installation worked by typing `conda list` in the terminal. In the terminal I then typed:
-`conda config --add channels bioconda
+and then moved to the directory it was in by typing `cd software` in the terminal. I then typed bash Miniconda3-py310_23.3.1-0-MacOSX-arm64.sh in the terminal to start the setup process. Conda is located in: /Users/hailaschultz/miniconda3. 
+
+I checked that installation worked by typing `conda list` in the terminal. In the terminal I then typed:
+`conda config --add channels defaults
+conda config --add channels bioconda
 conda config --add channels conda-forge
-conda create -n cutadaptenv cutadapt`
+conda config --set channel_priority strict`
+
+and then `conda create -n cutadaptenv cutadapt`
+
+On my personal computer, I had to use `CONDA_SUBDIR=osx-64 conda create -n cutadaptenv cutadapt`
+
+I ran conda init bash
 
 To activate the conda environment, in the terminal I typed `conda activate cutadaptenv`
 
-Make cutadapt work in r
+# Remove Primers
+
+Tell R the path to the cutadapt command
+
 ```{r}
-#change path
-old_path <- Sys.getenv("PATH")
-
-Sys.setenv(PATH = paste(old_path, "/home/shared/8TB_HDD_02/schulh2/miniconda3/envs/cutadaptenv/bin/cutadapt", sep = ";"))
-
-system2('cutadapt', args = "--version")
+cutadapt <- "/Users/hailaschultz/miniconda3/envs/cutadaptenv/bin/cutadapt" 
+system2(cutadapt, args = "--version") 
 ```
-```{bash}
-cutadapt --version
-```
+
 
 
 install packages
@@ -116,13 +123,7 @@ cd ../data
 zcat 2019APRP22Ve-COI-48samples_S165_L001_R2_001.fastq.gz | head -n 2
 ```
 
-# Remove Primers
 
-Tell R the path to the cutadapt command
-
-```{r}
-cutadapt <- "/home/shared/8TB_HDD_02/schulh2/miniconda3/envs/cutadaptenv/bin/cutadapt" 
-system2(cutadapt, args = "--version") 
 ```
 
 

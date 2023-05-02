@@ -3,18 +3,30 @@ title: "01-download-data"
 output: html_document
 date: "2023-04-07"
 ---
+load packages
+```{r}
+library(knitr)
+```
+
 
 move files into one folder
 ```{bash}
+cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/
+ls
+```
+
+```{bash}
 cd ../data
-find . -name '*.gz' -exec mv {} ../data/ \;
+find . -name '*.gz' -exec mv {} ../data/fastq-files/ \;
 ```
 
 
 create checksums file for all fastq files in data folder
 ```{bash}
-cd ../data
-shasum ../data/*.gz > fastq_checksums.sha
+cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/
+pwd
+ls
+shasum ../data/fastq-files/*.gz > fastq_checksums.sha
 cat fastq_checksums.sha
 ```
 
