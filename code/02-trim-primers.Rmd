@@ -4,29 +4,23 @@ output: html_document
 date: "2023-04-25"
 ---
 
-take a look at data
+This workflow is adapted from the following pipeline: https://benjjneb.github.io/dada2/ITS_workflow.html
 
-```{bash}
-cd ../data
-zcat 2019APRP22Ve-COI-48samples_S165_L001_R2_001.fastq.gz | head -n 2
-```
+# Get started
 
-# Install packages and software
-
-
+install r packages
 ```{r}
-library(devtools)
-devtools::install_github("benjjneb/dada2", ref="v1.16")
 install.packages('ShortRead')
-#install dada2
 install.packages("BiocManager")
-library(BiocManager)
 BiocManager::install("dada2")
-library("dada2")
+install.packages('ShortRead')
 ```
 
+load packages
 ```{r}
+library(BiocManager)
 library(ShortRead)
+library("dada2")
 ```
 
 
@@ -58,8 +52,15 @@ To activate the conda environment, in the terminal I typed `conda activate cutad
 
 # Remove Primers
 
+take a look at data
 
-# Make lists of forward and reverse read files
+```{bash}
+cd ../data
+zcat 2019APRP22Ve-COI-48samples_S165_L001_R2_001.fastq.gz | head -n 2
+```
+
+
+Make lists of forward and reverse read files
 
 list files for forward and reverse reads
 ```{r}
@@ -76,7 +77,7 @@ REV <- "TANACYTCNGGRTGNCCRAARAAYCA"
 ```
 
 
-# Check if primers are actually in data
+Check if primers are actually in data
 
 get orientations of primers
 ```{r}
@@ -92,7 +93,6 @@ FWD.orients <- allOrients(FWD)
 REV.orients <- allOrients(REV)
 FWD.orients
 ```
-
 
 count number of times primers occur
 ```{r}
@@ -114,8 +114,7 @@ system2(cutadapt, args = "--version")
 ```
 
 
-
-# use cutadapt
+use cutadapt
 ```{r}
 path.cut <- file.path(path, "cutadapt")
 if(!dir.exists(path.cut)) dir.create(path.cut)
@@ -136,8 +135,8 @@ for(i in seq_along(fnFs)) {
 }
 ```
 
-Check if adapters were trimmed
 
+Check if adapters were trimmed
 ```{r}
 rbind(FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = fnFs.cut[[1]]), 
     FWD.ReverseReads = sapply(FWD.orients, primerHits, fn = fnRs.cut[[1]]), 
@@ -146,6 +145,7 @@ rbind(FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = fnFs.cut[[1]]),
 #there are 5 forward reads that weren't trimmed... don't know why this is
 ```
 
+# Inspect read quality
 
 Get sample names
 ```{r}
@@ -159,7 +159,7 @@ sample.names <- unname(sapply(cutFs, get.sample.name))
 head(sample.names)
 ```
 
-# Inspect read quality
+
 ```{r}
 plotQualityProfile(cutFs[1:2])
 ```
@@ -168,4 +168,36 @@ plotQualityProfile(cutFs[1:2])
 plotQualityProfile(cutRs[1:2])
 ```
 
+Filter and Trim
+```{r}
+filtFs <- file.path(path.cut, "filtered", basename(cutFs))
+filtRs <- file.path(path.cut, "filtered", basename(cutRs))
+```
+
+```{r}
+# get sample names to see which files match
+get.sample.name <- function(fname) strsplit(basename(fname), "_")[[1]][1]
+sample.namesF <- unname(sapply(cutFs, get.sample.name))
+sample.namesR <- unname(sapply(cutRs, get.sample.name))
+```
+
+Check for differences between lists
+```{r}
+difsR <- setdiff(sample.namesR,sample.namesF)
+difsR
+difsF <- setdiff(sample.namesF,sample.namesR)
+difsF
+grep("2019APRP12VeA-COI-P1",filtFs)
+grep("2019JULP22VeA-COI-P1",filtFs)
+grep("2019APRP22Ve-COI-48samples",filtRs)
+```
+
+
+
+I need to make sure forward and reverse lists are the same
+```{r}
+out <- filterAndTrim(cutFs, filtFs, cutRs, filtRs, maxN = 0, maxEE = c(2, 2), 
+    truncQ = 2, minLen = 50, rm.phix = TRUE, compress = TRUE, multithread = TRUE) 
+head(out)
+```
 
