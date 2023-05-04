@@ -51,14 +51,29 @@ I ran conda init bash
 To activate the conda environment, in the terminal I typed `conda activate cutadaptenv`
 
 # Remove Primers
+download fastqc
+
+```{bash}
+curl -O https://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v0.11.7.zip
+```
+
+
+use fastqc 
+
+```{bash}
+cd ../Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data
+/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software/FastQC *fastq.gz -o ../output
+```
 
 take a look at data
 
 ```{bash}
-cd ../data
-zcat 2019APRP22Ve-COI-48samples_S165_L001_R2_001.fastq.gz | head -n 2
-```
+cd ../data/fastq-files/cutadapt
 
+pwd
+
+zcat 2018APRP12Ve-COI-48samples_S145_L001_R1_001.fastq.gz | head -n 2
+```
 
 Make lists of forward and reverse read files
 
@@ -210,9 +225,14 @@ cutRs <- cutRs[-indicesR]
 
 
 filter and trim
+maxN: allows zero Ns
+max EE: set to 5 for forward and reverse
+truncQ: set to 2
+minlen: minimum length is 100 reads
+rm.phix:remove phix
 ```{r}
-out <- filterAndTrim(cutFs, filtFs, cutRs, filtRs, maxN = 0, maxEE = c(2, 2), 
-    truncQ = 2, minLen = 50, rm.phix = TRUE, compress = TRUE, multithread = TRUE) 
+out <- filterAndTrim(cutFs, filtFs, cutRs, filtRs, maxN = 0, maxEE = c(5, 5), 
+    truncQ = 2, minLen = 100, rm.phix = TRUE, compress = TRUE, multithread = TRUE) 
 head(out)
 ```
 
