@@ -217,3 +217,19 @@ head(out)
 ```
 
 Use FastQC and multiQC to look at data before and after trimming
+
+
+learn the error rates
+```{r}
+errF <- learnErrors(filtFs, multithread=TRUE)
+```
+```{r}
+errR <- learnErrors(filtRs, multithread=TRUE)
+```
+
+plot the errors
+```{r}
+plotErrors(errF, nominalQ=TRUE)
+#looks okay! good to proceed
+```
+
