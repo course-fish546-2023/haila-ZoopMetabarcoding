@@ -216,8 +216,16 @@ out <- filterAndTrim(cutFs, filtFs, cutRs, filtRs, maxN = 0, maxEE = c(2, 2),
 head(out)
 ```
 
-Use FastQC and multiQC to look at data before and after trimming
+Check how many samples went through filtering
+```{bash}
+cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/fastq-files/cutadapt
 
+ls | wc -l
+
+cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/fastq-files/cutadapt/filtered
+
+ls | wc -l
+```
 
 learn the error rates
 ```{r}
@@ -231,5 +239,12 @@ plot the errors
 ```{r}
 plotErrors(errF, nominalQ=TRUE)
 #looks okay! good to proceed
+```
+
+
+
+apply core sample inference algorithm
+```{r}
+dadaFs <- dada(filtFs, err=errF, multithread=TRUE)
 ```
 
