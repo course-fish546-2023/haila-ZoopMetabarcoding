@@ -57,13 +57,22 @@ download fastqc
 curl -O https://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v0.11.7.zip
 ```
 
-
 use fastqc 
+```{bash}
+cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/fastq-files
+/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software/FastQC/fastqc *fastq.gz -o /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/output/raw-read-qc
+```
+
+make multiqc report
+in the terminal I ran `conda install multiqc` to install multiqc
 
 ```{bash}
-cd ../Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data
-/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software/FastQC *fastq.gz -o ../output
+cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/output/raw-read-qc
+
+multiqc .
 ```
+
+
 
 take a look at data
 
