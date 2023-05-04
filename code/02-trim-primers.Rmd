@@ -114,7 +114,7 @@ REV.orients <- allOrients(REV)
 FWD.orients
 ```
 
-count number of times primers occur
+count number of times primers occur in the first sample
 ```{r}
 primerHits <- function(primer, fn) {
     # Counts number of reads in which the primer is found
