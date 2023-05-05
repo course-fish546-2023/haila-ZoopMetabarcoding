@@ -24,9 +24,16 @@ The general order of operations (adapted from a workflow created by a collaborat
 1. Trim adapters and amplicon primers from sequence reads (use Cutadapt).
 notes on this step: it appears cutadapt doesn't work well with rstudio, but there is an option to open rstudio from within the conda environment, so I am switching to working with my rstudio desktop. The original error I had connecting rstudio desktop to git was fixed when I typed `xcode-select --install` into the terminal.
 2. Filter reads based on quality (use DADA2).
+- this code is complete, I just need to re-run after filtering out the files that didn't make it through the cutadapt step.
 3. Merge forward and reverse reads.
 4. Run BLASTn against the NCBI nt database as a reference.
 5. Use Taxonkit to convert BLAST results to a taxonomic heirarchy.
 6. Calculate diversity index for each sample.
 7. Make NMDS plots colored by year, month, and location.
 8. Make barplots to compare relative abunances among samples.
+
+## multiqc files 
+The multiqc file of the raw data files are located here: haila-ZoopMetabarcoding/output/raw-read-qc
+
+here is the multiqc file after using cutadapt: haila-ZoopMetabarcoding/output/after-cutadapt-qc
+
