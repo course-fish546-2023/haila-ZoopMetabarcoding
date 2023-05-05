@@ -52,7 +52,6 @@ To activate the conda environment, in the terminal I typed `conda activate cutad
 
 # Remove Primers
 download fastqc
-
 ```{bash}
 curl -O https://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v0.11.7.zip
 ```
@@ -173,11 +172,12 @@ cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/fastq-files/cutadapt
 /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software/FastQC/fastqc *fastq.gz -o /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/output/after-cutadapt-qc
 ```
 
-make multiqc report
-
+make multiqc report to check files after trimming primers
 ```{bash}
 cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/output/after-cutadapt-qc
 
 multiqc .
 ```
+
+After trimming the primers, about half of the files ended up with zero data/reads. I need to figure out what happened here, but for now I will proceed with the files that are okay and have pairs.
 

@@ -26,7 +26,6 @@ plotQualityProfile(cutFs[1:2])
 plotQualityProfile(cutRs[1:2])
 ```
 
-Filter and Trim
 ```{r}
 filtFs <- file.path(path.cut, "filtered", basename(cutFs))
 filtRs <- file.path(path.cut, "filtered", basename(cutRs))
@@ -39,7 +38,7 @@ sample.namesF <- unname(sapply(cutFs, get.sample.name))
 sample.namesR <- unname(sapply(cutRs, get.sample.name))
 ```
 
-Check for differences between lists
+Check for differences between lists and remove files that don't have a matching pair
 ```{r}
 difsR <- setdiff(sample.namesR,sample.namesF)
 difsR
@@ -67,7 +66,7 @@ cutRs <- cutRs[-indicesR]
 ```
 
 
-filter and trim
+## filter reads using quality thresholds
 maxN: allows zero Ns
 max EE: set to 5 for forward and reverse
 truncQ: set to 2
@@ -103,8 +102,6 @@ plot the errors
 plotErrors(errF, nominalQ=TRUE)
 #looks okay! good to proceed
 ```
-
-
 
 apply core sample inference algorithm
 ```{r}
