@@ -3,6 +3,7 @@
 This is the repository for my project analyzing metabarcoding data from zooplankton in Puget Sound from 2018-2020. Zooplankton samples were collected using vertical and oblique net tows at seven stations in April, July, and September. I will create a bioinformatics pipeline that identifies the zooplankton taxa found in each sample.
 
 ## Getting the data
+The HTML for this step is here: https://rpubs.com/HailaSchultz/download-data
 
 I downloaded fastq files for the LrCOI marker onto my local machine in the folder "FASTQ_Generation_2022-07-03_03_27_35Z-580375800-20230407T223438Z-002.zip" from this page:https://drive.google.com/drive/folders/1poXFdaBpk1SnPIPDc3-212Xz39gHohIL
 

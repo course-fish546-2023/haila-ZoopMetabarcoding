@@ -3,18 +3,31 @@ title: "01-download-data"
 output: html_document
 date: "2023-04-07"
 ---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,         # Display code chunks
+  eval = FALSE,        # Evaluate code chunks
+  warning = FALSE,     # Hide warnings
+  message = FALSE,     # Hide messages
+  fig.width = 6,       # Set plot width in inches
+  fig.height = 4,      # Set plot height in inches
+  fig.align = "center" # Align plots to the center
+)
+```
+This is step 1 of my project workflow. In this step, I am organizing my fastq files and checking their hash values. I originally downloaded my data from a shared google drive folder onto my computer and then uploaded into RStudio. Originally, the fastq files were located in multiple layers of directories.
+
+The HTML for step 1 is located here: https://rpubs.com/HailaSchultz/download-data
+
+
 load packages
 ```{r}
 library(knitr)
 ```
 
 
-move files into one folder
-```{bash}
-cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/
-ls
-```
+# Move files into one folder
 
+move multiple files from multiple layers of directories into the data directory
 ```{bash}
 cd ../data
 find . -name '*.gz' -exec mv {} ../data/fastq-files/ \;
@@ -30,7 +43,7 @@ shasum ../data/fastq-files/*.gz > fastq_checksums.sha
 cat fastq_checksums.sha
 ```
 
-#check if files match original
+check if files match original
 ```{bash}
 cd ../data
 shasum -c fastq_checksums.sha
