@@ -16,7 +16,9 @@ knitr::opts_chunk$set(
 ```
 This is step 1 of my project workflow. In this step, I am organizing my fastq files and checking their hash values. I originally downloaded my data from a shared google drive folder onto my computer and then uploaded into RStudio. Originally, the fastq files were located in multiple layers of directories.
 
-The HTML for step 1 is located here: https://rpubs.com/HailaSchultz/download-data
+The URL for step 1 is located here: https://rpubs.com/HailaSchultz/download-data
+
+The URL for step 2 is located here: https://rpubs.com/HailaSchultz/trim-primers
 
 
 load packages
