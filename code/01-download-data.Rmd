@@ -27,6 +27,8 @@ The URL for step 1 is located here: https://rpubs.com/HailaSchultz/download-data
 The URL for step 2 is located here: https://rpubs.com/HailaSchultz/trim-primers
 
 The URL for step 3 is located here: https://rpubs.com/HailaSchultz/filter-reads
+
+The URL for step 4 is located here: https://rpubs.com/HailaSchultz/pair
 # Step 1
 
 load packages

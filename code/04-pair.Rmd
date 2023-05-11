@@ -33,7 +33,7 @@ dadaRs <- dada(derepRs, err=errR, multithread=TRUE)
 ```
 
 inspect data-class object
-```{r, eval=TRUE}
+```{r}
 dadaFs[[1]]
 ```
 
