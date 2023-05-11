@@ -3,6 +3,25 @@ title: "03-filter-reads"
 output: html_document
 date: "2023-05-04"
 ---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,         # Display code chunks
+  eval = FALSE,        # Evaluate code chunks
+  warning = FALSE,     # Hide warnings
+  message = FALSE,     # Hide messages
+  fig.width = 6,       # Set plot width in inches
+  fig.height = 4,      # Set plot height in inches
+  fig.align = "center" # Align plots to the center
+)
+```
+load packages
+```{r}
+library(BiocManager)
+library(ShortRead)
+library("dada2")
+```
+
 # Inspect read quality
 
 Get sample names
@@ -44,6 +63,11 @@ difsR <- setdiff(sample.namesR,sample.namesF)
 difsR
 difsF <- setdiff(sample.namesF,sample.namesR)
 difsF
+
+```
+
+```{r}
+#only run this chunk if all the files are going through
 grep("2019APRP12VeA-COI-P1",filtFs)
 grep("2019JULP22VeA-COI-P1",filtFs)
 grep("2019APRP22Ve-COI-48samples",filtRs)
@@ -64,7 +88,6 @@ cutFs <- cutFs[-indicesF]
 cutRs <- cutRs[-indicesR]
 
 ```
-
 
 ## filter reads using quality thresholds
 maxN: allows zero Ns
@@ -102,8 +125,7 @@ plot the errors
 plotErrors(errF, nominalQ=TRUE)
 #looks okay! good to proceed
 ```
-
-apply core sample inference algorithm
 ```{r}
-dadaFs <- dada(filtFs, err=errF, multithread=TRUE)
+plotErrors(errR, nominalQ=TRUE)
+#looks okay! good to proceed
 ```

@@ -1,0 +1,81 @@
+---
+title: "04-pair"
+output: html_document
+date: "2023-05-10"
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,         # Display code chunks
+  eval = FALSE,        # Evaluate code chunks
+  warning = FALSE,     # Hide warnings
+  message = FALSE,     # Hide messages
+  fig.width = 6,       # Set plot width in inches
+  fig.height = 4,      # Set plot height in inches
+  fig.align = "center" # Align plots to the center
+)
+```
+
+# Dereplication
+```{r}
+derepFs <- derepFastq(filtFs, verbose=TRUE)
+derepRs <- derepFastq(filtRs, verbose=TRUE)
+# Name the derep-class objects by the sample names
+names(derepFs) <- sample.names
+names(derepRs) <- sample.names
+```
+
+# Apply core sample inference algorithm
+```{r}
+dadaFs <- dada(derepFs, err=errF, multithread=TRUE)
+```
+```{r}
+dadaRs <- dada(derepRs, err=errR, multithread=TRUE)
+```
+
+inspect data-class object
+```{r, eval=TRUE}
+dadaFs[[1]]
+```
+
+# Merge Paired Reads
+```{r}
+mergers <- mergePairs(dadaFs, derepFs, dadaRs, derepRs, verbose=TRUE)
+# Inspect the merger data.frame from the first sample
+head(mergers[[1]])
+```
+
+# Construct ASV table
+
+make sequence table
+```{r}
+seqtab <- makeSequenceTable(mergers)
+```
+
+inspect sequence length distributions
+eventually make histogram here
+```{r}
+table(nchar(getSequences(seqtab)))
+```
+
+# remove chimeras
+```{r}
+seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE, verbose=TRUE)
+dim(seqtab.nochim)
+```
+```{r}
+sum(seqtab.nochim)/sum(seqtab)
+```
+chimeras account for very low perentage of reads
+
+
+# track how many reads made it through the pipeline
+```{r}
+getN <- function(x) sum(getUniques(x))
+track <- cbind(out, sapply(dadaFs, getN), sapply(dadaRs, getN), sapply(mergers, getN), rowSums(seqtab.nochim))
+
+colnames(track) <- c("input", "filtered", "denoisedF", "denoisedR", "merged", "nonchim")
+rownames(track) <- sample.names
+head(track)
+```
+no step had a majority of the reads removed
+

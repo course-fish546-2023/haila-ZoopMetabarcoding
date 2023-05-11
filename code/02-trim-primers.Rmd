@@ -193,3 +193,11 @@ multiqc .
 
 After trimming the primers, about half of the files ended up with zero data/reads. I need to figure out what happened here, but for now I will proceed with the files that are okay and have pairs.
 
+
+delete files smaller than 1 MB in the cutadapt directory
+```{r, engine="bash"}
+cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/fastq-files/cutadapt
+find . -type f -name "*.gz" -size -1M -delete
+```
+
+

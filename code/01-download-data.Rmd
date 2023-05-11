@@ -14,12 +14,20 @@ knitr::opts_chunk$set(
   fig.align = "center" # Align plots to the center
 )
 ```
+#Project Summary
+
+This project utilizes metabarcoding and the LrCOI marker to taxonomically identify zooplankton samples from Washington Ocean Acidification Center Cruises. Samples were collected from seven stations spread throughout Puget Sound in April, July, and September 2018-2020. Zooplankton samples were collected using a 200 um net towed vertically from 10 meters from the bottom of the water column to the surface. A 5 ml subsample (settled volume) of each sample was homogenized, dried, and subsampled before being sent off to Ohio State University for library prep and sequencing.
+
+
+# Pipeline
 This is step 1 of my project workflow. In this step, I am organizing my fastq files and checking their hash values. I originally downloaded my data from a shared google drive folder onto my computer and then uploaded into RStudio. Originally, the fastq files were located in multiple layers of directories.
 
 The URL for step 1 is located here: https://rpubs.com/HailaSchultz/download-data
 
 The URL for step 2 is located here: https://rpubs.com/HailaSchultz/trim-primers
 
+The URL for step 3 is located here: https://rpubs.com/HailaSchultz/filter-reads
+# Step 1
 
 load packages
 ```{r}
@@ -30,23 +38,21 @@ library(knitr)
 # Move files into one folder
 
 move multiple files from multiple layers of directories into the data directory
-```{bash}
+```{r, engine="bash"}
 cd ../data
 find . -name '*.gz' -exec mv {} ../data/fastq-files/ \;
 ```
 
 
 create checksums file for all fastq files in data folder
-```{bash}
+```{r, engine="bash", eval=TRUE}
 cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/
-pwd
-ls
 shasum ../data/fastq-files/*.gz > fastq_checksums.sha
 cat fastq_checksums.sha
 ```
 
 check if files match original
-```{bash}
+```{r, engine="bash", eval=TRUE}
 cd ../data
 shasum -c fastq_checksums.sha
 ```
