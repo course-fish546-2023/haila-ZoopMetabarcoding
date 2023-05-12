@@ -1,0 +1,116 @@
+---
+title: "05-Blast"
+output: html_document
+date: "2023-05-11"
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,         # Display code chunks
+  eval = FALSE,        # Evaluate code chunks
+  warning = FALSE,     # Hide warnings
+  message = FALSE,     # Hide messages
+  fig.width = 6,       # Set plot width in inches
+  fig.height = 4,      # Set plot height in inches
+  fig.align = "center" # Align plots to the center
+)
+```
+
+load packages
+```{r}
+library(dplyr)
+library(tidyverse)
+```
+
+download software from NCBI
+```{bash}
+#change directory
+cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software
+#download software
+curl -O https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/ncbi-blast-2.14.0+-x64-macosx.tar.gz
+```
+
+
+unzip
+```{bash}
+cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software
+tar -xzf ncbi-blast-2.14.0+-x64-macosx.tar.gz
+```
+
+Check if it's working
+I had to go into my computer settings and give permissions to use blast because it is from and "unidentified developer"
+```{bash}
+/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software/ncbi-blast-2.14.0+/bin/blastx -h
+```
+
+# Make blast database
+Download the reference. The reference used here is from metazoogene and is the file for all marine fauna and flora of the world oceans
+```{bash}
+#download from url
+cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data
+curl -O https://www.st.nmfs.noaa.gov/nauplius/media/metazoogene/atlas/data-src/MZGfasta-coi__MZGdbALL__o00__A.fasta
+#unzip
+gunzip -k MZGfasta-coi__MZGdbALL__o00__A.fasta
+```
+
+make the blast database
+I changed dbtype from prot to nucl
+```{bash}
+/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software/ncbi-blast-2.14.0+/bin/makeblastdb \
+-in /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/MZGfasta-coi__MZGdbALL__o00__A.fasta \
+-dbtype nucl \
+-out /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/blastdb/MZGfasta-coi__MZGdbALL__o00__A
+```
+
+```{r}
+getwd()
+```
+
+
+Write output to a fasta file that can be blasted
+transpose table
+```{r}
+seqtab.nochim_trans <- as.data.frame(t(seqtab.nochim)) %>% rownames_to_column(var = "sequence") %>% 
+    rowid_to_column(var = "OTUNumber") %>% mutate(OTUNumber = sprintf("otu%04d", 
+    OTUNumber)) %>% mutate(sequence = str_replace_all(sequence, "(-|\\.)", ""))
+```
+
+
+```{r}
+df <- seqtab.nochim_trans
+seq_out <- Biostrings::DNAStringSet(df$sequence)
+
+names(seq_out) <- str_c(df$OTUNumber, df$Supergroup, df$Division, df$Class, 
+    df$Order, df$Family, df$Genus, df$Species, sep = "|")
+
+Biostrings::writeXStringSet(seq_out, str_c( "Zoop_ASV.fasta"), compress = FALSE, 
+    width = 20000)
+
+#I had to move this file from my working directory to my data directory
+```
+
+
+```{bash}
+head /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/Zoop_ASV.fasta
+echo "How many sequences are there?"
+grep "TTTATCTGCAGGAATTGCACATGCTGGGGCTTCTGTAGATATAGGAATCTTTTCACTACATATTGCTGGAGCCTCTTCTATTTTAGGAGCAGTTAATTTCATTACAACTGTAATTAATATGCGATCAGCAGGAATAACTATAGACCGTATCCCCTTATTCGTATGGTCTGTGTTTATTACAGCAATTTTACTTTTATTGTCTCTACCAGTTTTAGCTGGAGCAATCACAATACTTTTAACAGACCGTAATTTAAATACATCTTTCTTCGACCCTGCCGGGGGTGGTGACCCTATTTTATATCAACATCTATTC" /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/Zoop_ASV.fasta
+```
+
+# Run Blast
+
+change blastx to blastn
+```{bash}
+/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software/ncbi-blast-2.14.0+/bin/blastn \
+-query /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/Zoop_ASV.fasta \
+-db /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/blastdb/MZGfasta-coi__MZGdbALL__o00__A \
+-out /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/output/Zoop_ASV.tab \
+-num_threads 8 \
+-max_target_seqs 1 \
+-outfmt 6
+```
+
+```{bash}
+head -2 ../output/Zoop_ASV.tab
+wc -l ../output/Zoop_ASV.tab
+```
+
+
