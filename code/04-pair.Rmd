@@ -16,7 +16,9 @@ knitr::opts_chunk$set(
 ```
 
 # Dereplication
-```{r}
+
+This step takes a little while
+```{r, eval=TRUE, cache=TRUE}
 derepFs <- derepFastq(filtFs, verbose=TRUE)
 derepRs <- derepFastq(filtRs, verbose=TRUE)
 # Name the derep-class objects by the sample names
@@ -25,51 +27,46 @@ names(derepRs) <- sample.names
 ```
 
 # Apply core sample inference algorithm
-```{r}
+```{r, eval=TRUE, cache=TRUE}
 dadaFs <- dada(derepFs, err=errF, multithread=TRUE)
 ```
-```{r}
+```{r, eval=TRUE, cache=TRUE}
 dadaRs <- dada(derepRs, err=errR, multithread=TRUE)
 ```
 
-inspect data-class object
-```{r}
-dadaFs[[1]]
-```
-
 # Merge Paired Reads
-```{r}
+```{r, eval=TRUE, cache=TRUE}
 mergers <- mergePairs(dadaFs, derepFs, dadaRs, derepRs, verbose=TRUE)
 # Inspect the merger data.frame from the first sample
 head(mergers[[1]])
 ```
 
 # Construct ASV table
-
 make sequence table
-```{r}
+```{r, eval=TRUE}
 seqtab <- makeSequenceTable(mergers)
 ```
 
 inspect sequence length distributions
 eventually make histogram here
-```{r}
+```{r, eval=TRUE}
 table(nchar(getSequences(seqtab)))
 ```
 
 # remove chimeras
-```{r}
+```{r, eval=TRUE}
 seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE, verbose=TRUE)
-dim(seqtab.nochim)
 ```
-```{r}
+
+evaluate percentage of reads were chimeric
+```{r, eval=TRUE}
 sum(seqtab.nochim)/sum(seqtab)
 ```
 chimeras account for very low perentage of reads
 
 
 # track how many reads made it through the pipeline
-```{r}
+```{r, eval=TRUE}
 getN <- function(x) sum(getUniques(x))
 track <- cbind(out, sapply(dadaFs, getN), sapply(dadaRs, getN), sapply(mergers, getN), rowSums(seqtab.nochim))
 

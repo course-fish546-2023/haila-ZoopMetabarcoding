@@ -16,13 +16,13 @@ knitr::opts_chunk$set(
 ```
 
 load packages
-```{r}
+```{r, eval=TRUE}
 library(dplyr)
 library(tidyverse)
 ```
 
 download software from NCBI
-```{bash}
+```{r, engine="bash"}
 #change directory
 cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software
 #download software
@@ -31,20 +31,21 @@ curl -O https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/https://ftp
 
 
 unzip
-```{bash}
+```{r, engine="bash"}
 cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software
 tar -xzf ncbi-blast-2.14.0+-x64-macosx.tar.gz
 ```
 
 Check if it's working
 I had to go into my computer settings and give permissions to use blast because it is from and "unidentified developer"
-```{bash}
+```{r, engine="bash", eval=TRUE}
 /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software/ncbi-blast-2.14.0+/bin/blastx -h
 ```
 
 # Make blast database
+
 Download the reference. The reference used here is from metazoogene and is the file for all marine fauna and flora of the world oceans
-```{bash}
+```{r, engine="bash"}
 #download from url
 cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data
 curl -O https://www.st.nmfs.noaa.gov/nauplius/media/metazoogene/atlas/data-src/MZGfasta-coi__MZGdbALL__o00__A.fasta
@@ -54,28 +55,24 @@ gunzip -k MZGfasta-coi__MZGdbALL__o00__A.fasta
 
 make the blast database
 I changed dbtype from prot to nucl
-```{bash}
+```{r, engine="bash"}
 /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software/ncbi-blast-2.14.0+/bin/makeblastdb \
 -in /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/MZGfasta-coi__MZGdbALL__o00__A.fasta \
 -dbtype nucl \
 -out /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/blastdb/MZGfasta-coi__MZGdbALL__o00__A
 ```
 
-```{r}
-getwd()
-```
-
 
 Write output to a fasta file that can be blasted
 transpose table
-```{r}
+```{r, eval=TRUE}
 seqtab.nochim_trans <- as.data.frame(t(seqtab.nochim)) %>% rownames_to_column(var = "sequence") %>% 
     rowid_to_column(var = "OTUNumber") %>% mutate(OTUNumber = sprintf("otu%04d", 
     OTUNumber)) %>% mutate(sequence = str_replace_all(sequence, "(-|\\.)", ""))
 ```
 
-
-```{r}
+convert to fasta file
+```{r, eval=TRUE}
 df <- seqtab.nochim_trans
 seq_out <- Biostrings::DNAStringSet(df$sequence)
 
@@ -88,17 +85,15 @@ Biostrings::writeXStringSet(seq_out, str_c( "Zoop_ASV.fasta"), compress = FALSE,
 #I had to move this file from my working directory to my data directory
 ```
 
-
-```{bash}
+examine fasta file
+```{r, engine="bash", eval=TRUE}
 head /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/Zoop_ASV.fasta
-echo "How many sequences are there?"
-grep "TTTATCTGCAGGAATTGCACATGCTGGGGCTTCTGTAGATATAGGAATCTTTTCACTACATATTGCTGGAGCCTCTTCTATTTTAGGAGCAGTTAATTTCATTACAACTGTAATTAATATGCGATCAGCAGGAATAACTATAGACCGTATCCCCTTATTCGTATGGTCTGTGTTTATTACAGCAATTTTACTTTTATTGTCTCTACCAGTTTTAGCTGGAGCAATCACAATACTTTTAACAGACCGTAATTTAAATACATCTTTCTTCGACCCTGCCGGGGGTGGTGACCCTATTTTATATCAACATCTATTC" /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/Zoop_ASV.fasta
 ```
 
 # Run Blast
 
 change blastx to blastn
-```{bash}
+```{r, engine="bash"}
 /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software/ncbi-blast-2.14.0+/bin/blastn \
 -query /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/Zoop_ASV.fasta \
 -db /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/blastdb/MZGfasta-coi__MZGdbALL__o00__A \
@@ -108,9 +103,11 @@ change blastx to blastn
 -outfmt 6
 ```
 
-```{bash}
+Examine blast output
+```{r, engine="bash"}
 head -2 ../output/Zoop_ASV.tab
 wc -l ../output/Zoop_ASV.tab
 ```
+These are species we expect to see - looks like blast worked!
 
 

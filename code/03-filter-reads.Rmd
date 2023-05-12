@@ -16,7 +16,7 @@ knitr::opts_chunk$set(
 )
 ```
 load packages
-```{r}
+```{r, eval=TRUE}
 library(BiocManager)
 library(ShortRead)
 library("dada2")
@@ -25,7 +25,7 @@ library("dada2")
 # Inspect read quality
 
 Get sample names
-```{r}
+```{r, eval=TRUE}
 # Forward and reverse fastq filenames have the format:
 cutFs <- sort(list.files(path.cut, pattern = "_R1_001.fastq.gz", full.names = TRUE))
 cutRs <- sort(list.files(path.cut, pattern = "_R2_001.fastq.gz", full.names = TRUE))
@@ -36,21 +36,24 @@ sample.names <- unname(sapply(cutFs, get.sample.name))
 head(sample.names)
 ```
 
-
-```{r}
+plot forward read quality for first two files
+```{r, eval=TRUE}
 plotQualityProfile(cutFs[1:2])
 ```
-```{r}
-#reverse read quality
+
+plot reverse read quality for first two files
+```{r, eval=TRUE}
 plotQualityProfile(cutRs[1:2])
 ```
+The forward reads are better quality, as we might expect.
 
-```{r}
+
+```{r, eval=TRUE}
 filtFs <- file.path(path.cut, "filtered", basename(cutFs))
 filtRs <- file.path(path.cut, "filtered", basename(cutRs))
 ```
 
-```{r}
+```{r, eval=TRUE}
 # get sample names to see which files match
 get.sample.name <- function(fname) strsplit(basename(fname), "_")[[1]][1]
 sample.namesF <- unname(sapply(cutFs, get.sample.name))
@@ -58,36 +61,15 @@ sample.namesR <- unname(sapply(cutRs, get.sample.name))
 ```
 
 Check for differences between lists and remove files that don't have a matching pair
-```{r}
+```{r, eval=TRUE}
 difsR <- setdiff(sample.namesR,sample.namesF)
 difsR
 difsF <- setdiff(sample.namesF,sample.namesR)
 difsF
 
 ```
+It looks like there are no differences, so we can proceed
 
-```{r}
-#only run this chunk if all the files are going through
-grep("2019APRP12VeA-COI-P1",filtFs)
-grep("2019JULP22VeA-COI-P1",filtFs)
-grep("2019APRP22Ve-COI-48samples",filtRs)
-
-#remove non-matched files
-indicesF <- c(35,51)
-filtFs <- filtFs[-indicesF]
-
-indicesR <- c(36)
-filtRs <- filtRs[-indicesR]
-
-#do the same for cut files
-grep("2019APRP12VeA-COI-P1",cutFs)
-grep("2019JULP22VeA-COI-P1",cutFs)
-grep("2019APRP22Ve-COI-48samples",cutRs)
-
-cutFs <- cutFs[-indicesF]
-cutRs <- cutRs[-indicesR]
-
-```
 
 ## filter reads using quality thresholds
 maxN: allows zero Ns
@@ -95,14 +77,14 @@ max EE: set to 5 for forward and reverse
 truncQ: set to 2
 minlen: minimum length is 100 reads
 rm.phix:remove phix
+this step takes a long time
 ```{r}
 out <- filterAndTrim(cutFs, filtFs, cutRs, filtRs, maxN = 0, maxEE = c(5, 5), 
     truncQ = 2, minLen = 100, rm.phix = TRUE, compress = TRUE, multithread = TRUE) 
-head(out)
 ```
 
 Check how many samples went through filtering
-```{bash}
+```{bash, eval=TRUE}
 cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/fastq-files/cutadapt
 
 ls | wc -l
@@ -113,19 +95,39 @@ ls | wc -l
 ```
 
 learn the error rates
-```{r}
+
+forward reads
+```{r, eval=TRUE, cache=TRUE}
 errF <- learnErrors(filtFs, multithread=TRUE)
 ```
-```{r}
+reverse reads
+```{r, eval=TRUE, cache=TRUE}
 errR <- learnErrors(filtRs, multithread=TRUE)
 ```
 
 plot the errors
-```{r}
+```{r, eval=TRUE}
 plotErrors(errF, nominalQ=TRUE)
 #looks okay! good to proceed
 ```
-```{r}
+```{r, eval=TRUE}
 plotErrors(errR, nominalQ=TRUE)
 #looks okay! good to proceed
 ```
+
+QC check on files after filtering were trimmed
+
+use fastqc 
+```{r, engine="bash"}
+cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/fastq-files/cutadapt/filtered
+/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software/FastQC/fastqc *fastq.gz -o /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/output/after-filtering-qc
+```
+
+make multiqc report to check files after trimming primers
+```{r, engine="bash"}
+cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/output/after-filtering-qc
+
+multiqc .
+```
+
+![screenshot of multiqc mean quality scores after filtering](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/after-filtering_multiqc.png)

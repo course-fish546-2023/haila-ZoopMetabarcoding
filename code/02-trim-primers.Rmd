@@ -29,7 +29,7 @@ install.packages('ShortRead')
 ```
 
 load packages
-```{r}
+```{r, eval=TRUE}
 library(BiocManager)
 library(ShortRead)
 library("dada2")
@@ -58,7 +58,7 @@ and then `conda create -n cutadaptenv cutadapt`
 
 On my personal computer, I had to use `CONDA_SUBDIR=osx-64 conda create -n cutadaptenv cutadapt`
 
-I ran conda init bash
+I ran `conda init bash`
 
 To activate the conda environment, in the terminal I typed `conda activate cutadaptenv`
 
@@ -83,18 +83,12 @@ cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/output/raw-read-qc
 multiqc .
 ```
 
-
-
-take a look at data
-
-```{r, engine="bash"}
-zcat 2018APRP12Ve-COI-48samples_S145_L001_R1_001.fastq.gz | head -n 2
-```
+![screenshot of multiqc mean qualit scores](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/raw-data_multiqc.png)
 
 Make lists of forward and reverse read files
 
 list files for forward and reverse reads
-```{r}
+```{r, eval=TRUE, cache=TRUE}
 #set file path
 path <- "../data/fastq-files"
 #make matched list of forward and reverse reads
@@ -111,7 +105,7 @@ REV <- "TANACYTCNGGRTGNCCRAARAAYCA"
 Check if primers are actually in data
 
 get orientations of primers
-```{r}
+```{r, eval=TRUE, cache=TRUE}
 allOrients <- function(primer) {
     # Create all orientations of the input sequence
     require(Biostrings)
@@ -126,7 +120,7 @@ FWD.orients
 ```
 
 count number of times primers occur in the first sample
-```{r}
+```{r, eval=TRUE, cache=TRUE}
 primerHits <- function(primer, fn) {
     # Counts number of reads in which the primer is found
     nhits <- vcountPattern(primer, sread(readFastq(fn)), fixed = FALSE)
@@ -139,14 +133,14 @@ rbind(FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = fnFs[[1]]),
 ```
 Tell R the path to the cutadapt command
 
-```{r}
+```{r, eval=TRUE, cache=TRUE}
 cutadapt <- "/Users/hailaschultz/miniconda3/envs/cutadaptenv/bin/cutadapt" 
 system2(cutadapt, args = "--version") 
 ```
 
 
 use cutadapt
-```{r}
+```{r, eval=TRUE, cache=TRUE}
 path.cut <- file.path(path, "cutadapt")
 if(!dir.exists(path.cut)) dir.create(path.cut)
 fnFs.cut <- file.path(path.cut, basename(fnFs))
@@ -157,8 +151,11 @@ REV.RC <- dada2:::rc(REV)
 # Trim FWD and the reverse-complement of REV off of R1 (forward reads)
 R1.flags <- paste("-g", FWD, "-a", REV.RC) 
 # Trim REV and the reverse-complement of FWD off of R2 (reverse reads)
-R2.flags <- paste("-G", REV, "-A", FWD.RC) 
-# Run Cutadapt
+R2.flags <- paste("-G", REV, "-A", FWD.RC)
+```
+
+Run Cutadapt
+```{r}
 for(i in seq_along(fnFs)) {
   system2(cutadapt, args = c(R1.flags, R2.flags, "-n", 2, # -n 2 required to remove FWD and REV from reads
                              "-o", fnFs.cut[i], "-p", fnRs.cut[i], # output files
@@ -168,12 +165,22 @@ for(i in seq_along(fnFs)) {
 
 
 Check if adapters were trimmed
-```{r}
+```{r, eval=TRUE, cache=TRUE}
 rbind(FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = fnFs.cut[[1]]), 
     FWD.ReverseReads = sapply(FWD.orients, primerHits, fn = fnRs.cut[[1]]), 
     REV.ForwardReads = sapply(REV.orients, primerHits, fn = fnFs.cut[[1]]), 
     REV.ReverseReads = sapply(REV.orients, primerHits, fn = fnRs.cut[[1]]))
-#there are 5 forward reads that weren't trimmed... don't know why this is
+#there were a few reverse reads that were not trimmed, but overall it looks good
+```
+
+
+After trimming the primers, about half of the files ended up with zero data/reads. I think it is an issue with the read names. The error I get is along the lines of "error in sequence file at unknown line reads are improperly paired, read names don't match", I need to figure out what happened here, but for now I will proceed with the files that are okay and have pairs.
+
+
+delete files that didn't make it through cutadapt - smaller than 1 MB in the cutadapt directory
+```{r, engine="bash"}
+cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/fastq-files/cutadapt
+find . -type f -name "*.gz" -size -1M -delete
 ```
 
 QC check on files after primers were trimmed
@@ -190,14 +197,5 @@ cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/output/after-cutadapt-qc
 
 multiqc .
 ```
-
-After trimming the primers, about half of the files ended up with zero data/reads. I need to figure out what happened here, but for now I will proceed with the files that are okay and have pairs.
-
-
-delete files smaller than 1 MB in the cutadapt directory
-```{r, engine="bash"}
-cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/fastq-files/cutadapt
-find . -type f -name "*.gz" -size -1M -delete
-```
-
+![screenshot of multiqc mean quality scores after cutadapt](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/after-cutadapt_multiqc.png)
 

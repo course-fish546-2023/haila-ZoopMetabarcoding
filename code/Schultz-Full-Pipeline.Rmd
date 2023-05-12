@@ -1,0 +1,530 @@
+---
+title: "02-trim-primers"
+output: html_document
+date: "2023-04-25"
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,         # Display code chunks
+  eval = FALSE,        # Evaluate code chunks
+  warning = FALSE,     # Hide warnings
+  message = FALSE,     # Hide messages
+  fig.width = 6,       # Set plot width in inches
+  fig.height = 4,      # Set plot height in inches
+  fig.align = "center" # Align plots to the center
+)
+```
+# Project Summary
+
+The report is located here: https://rpubs.com/HailaSchultz/full-pipeline
+
+This project utilizes metabarcoding and the LrCOI marker to taxonomically identify zooplankton samples from Washington Ocean Acidification Center Cruises. Samples were collected from seven stations spread throughout Puget Sound in April, July, and September 2018-2020. Zooplankton samples were collected using a 200 um net towed vertically from 10 meters from the bottom of the water column to the surface. A 5 ml subsample (settled volume) of each sample was homogenized, dried, and subsampled before being sent off to Ohio State University for library prep and sequencing.
+
+
+# Download Data
+This is step 1 of my project workflow. In this step, I am organizing my fastq files and checking their hash values. I originally downloaded my data from a shared google drive folder onto my computer and then uploaded into RStudio. Originally, the fastq files were located in multiple layers of directories.
+
+
+load packages
+```{r}
+library(knitr)
+```
+
+
+Move files into one folder
+
+move multiple files from multiple layers of directories into the data directory
+```{r, engine="bash"}
+cd ../data
+find . -name '*.gz' -exec mv {} ../data/fastq-files/ \;
+```
+
+
+create checksums file for all fastq files in data folder
+```{r, engine="bash", eval=TRUE}
+cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/
+shasum ../data/fastq-files/*.gz > fastq_checksums.sha
+cat fastq_checksums.sha
+```
+
+check if files match original
+```{r, engine="bash", eval=TRUE}
+cd ../data
+shasum -c fastq_checksums.sha
+```
+
+
+
+This is step 2 of my project workflow. Here, I use cutadapt to trim the primers off of my reads.
+
+This workflow is adapted from the following pipeline: https://benjjneb.github.io/dada2/ITS_workflow.html
+
+# Remove Adapters with Cutadapt
+
+install r packages
+```{r}
+install.packages('ShortRead')
+install.packages("BiocManager")
+BiocManager::install("dada2")
+install.packages('ShortRead')
+```
+
+load packages
+```{r, eval=TRUE}
+library(BiocManager)
+library(ShortRead)
+library("dada2")
+```
+
+
+To get cutadapt, I downloaded the miniconda installer using curl 
+
+install cutadapt software
+```{r, engine="bash"}
+#download miniconda from url
+cd ../software
+curl -O https://repo.anaconda.com/miniconda/Miniconda3-py310_23.3.1-0-MacOSX-arm64.sh
+
+```
+
+and then moved to the directory it was in by typing `cd software` in the terminal. I then typed bash Miniconda3-py310_23.3.1-0-MacOSX-arm64.sh in the terminal to start the setup process. Conda is located in: /Users/hailaschultz/miniconda3. 
+
+I checked that installation worked by typing `conda list` in the terminal. In the terminal I then typed:
+`conda config --add channels defaults
+conda config --add channels bioconda
+conda config --add channels conda-forge
+conda config --set channel_priority strict`
+
+and then `conda create -n cutadaptenv cutadapt`
+
+On my personal computer, I had to use `CONDA_SUBDIR=osx-64 conda create -n cutadaptenv cutadapt`
+
+I ran `conda init bash`
+
+To activate the conda environment, in the terminal I typed `conda activate cutadaptenv`
+
+# Remove Primers
+download fastqc
+```{r, engine="bash"}
+curl -O https://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v0.11.7.zip
+```
+
+use fastqc 
+```{r, engine="bash"}
+cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/fastq-files
+/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software/FastQC/fastqc *fastq.gz -o /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/output/raw-read-qc
+```
+
+make multiqc report
+in the terminal I ran `conda install multiqc` to install multiqc
+
+```{r, engine="bash"}
+cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/output/raw-read-qc
+
+multiqc .
+```
+
+![screenshot of multiqc mean qualit scores](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/raw-data_multiqc.png)
+
+Make lists of forward and reverse read files
+
+list files for forward and reverse reads
+```{r, eval=TRUE, cache=TRUE}
+#set file path
+path <- "../data/fastq-files"
+#make matched list of forward and reverse reads
+fnFs <- sort(list.files(path, pattern = "_R1_001.fastq.gz", full.names = TRUE))
+fnRs <- sort(list.files(path, pattern = "_R2_001.fastq.gz", full.names = TRUE))
+
+#specify primer sequences
+FWD <- "GGWACWGGWTGAACWGTWTAYCCYCC"  
+REV <- "TANACYTCNGGRTGNCCRAARAAYCA"  
+#in the reverse primer, I replaced I with N
+```
+
+
+Check if primers are actually in data
+
+get orientations of primers
+```{r, eval=TRUE, cache=TRUE}
+allOrients <- function(primer) {
+    # Create all orientations of the input sequence
+    require(Biostrings)
+    dna <- DNAString(primer)  # The Biostrings works w/ DNAString objects rather than character vectors
+    orients <- c(Forward = dna, Complement = complement(dna), Reverse = reverse(dna), 
+        RevComp = reverseComplement(dna))
+    return(sapply(orients, toString))  # Convert back to character vector
+}
+FWD.orients <- allOrients(FWD)
+REV.orients <- allOrients(REV)
+FWD.orients
+```
+
+count number of times primers occur in the first sample
+```{r, eval=TRUE, cache=TRUE}
+primerHits <- function(primer, fn) {
+    # Counts number of reads in which the primer is found
+    nhits <- vcountPattern(primer, sread(readFastq(fn)), fixed = FALSE)
+    return(sum(nhits > 0))
+}
+rbind(FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = fnFs[[1]]), 
+    FWD.ReverseReads = sapply(FWD.orients, primerHits, fn = fnRs[[1]]), 
+    REV.ForwardReads = sapply(REV.orients, primerHits, fn = fnFs[[1]]), 
+    REV.ReverseReads = sapply(REV.orients, primerHits, fn = fnRs[[1]]))
+```
+Tell R the path to the cutadapt command
+
+```{r, eval=TRUE, cache=TRUE}
+cutadapt <- "/Users/hailaschultz/miniconda3/envs/cutadaptenv/bin/cutadapt" 
+system2(cutadapt, args = "--version") 
+```
+
+
+use cutadapt
+```{r, eval=TRUE, cache=TRUE}
+path.cut <- file.path(path, "cutadapt")
+if(!dir.exists(path.cut)) dir.create(path.cut)
+fnFs.cut <- file.path(path.cut, basename(fnFs))
+fnRs.cut <- file.path(path.cut, basename(fnRs))
+
+FWD.RC <- dada2:::rc(FWD)
+REV.RC <- dada2:::rc(REV)
+# Trim FWD and the reverse-complement of REV off of R1 (forward reads)
+R1.flags <- paste("-g", FWD, "-a", REV.RC) 
+# Trim REV and the reverse-complement of FWD off of R2 (reverse reads)
+R2.flags <- paste("-G", REV, "-A", FWD.RC)
+```
+
+Run Cutadapt
+```{r}
+for(i in seq_along(fnFs)) {
+  system2(cutadapt, args = c(R1.flags, R2.flags, "-n", 2, # -n 2 required to remove FWD and REV from reads
+                             "-o", fnFs.cut[i], "-p", fnRs.cut[i], # output files
+                             fnFs[i], fnRs[i])) # input files
+}
+```
+
+
+Check if adapters were trimmed
+```{r, eval=TRUE, cache=TRUE}
+rbind(FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = fnFs.cut[[1]]), 
+    FWD.ReverseReads = sapply(FWD.orients, primerHits, fn = fnRs.cut[[1]]), 
+    REV.ForwardReads = sapply(REV.orients, primerHits, fn = fnFs.cut[[1]]), 
+    REV.ReverseReads = sapply(REV.orients, primerHits, fn = fnRs.cut[[1]]))
+#there were a few reverse reads that were not trimmed, but overall it looks good
+```
+
+
+After trimming the primers, about half of the files ended up with zero data/reads. I think it is an issue with the read names. The error I get is along the lines of "error in sequence file at unknown line reads are improperly paired, read names don't match", I need to figure out what happened here, but for now I will proceed with the files that are okay and have pairs.
+
+
+delete files that didn't make it through cutadapt - smaller than 1 MB in the cutadapt directory
+```{r, engine="bash"}
+cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/fastq-files/cutadapt
+find . -type f -name "*.gz" -size -1M -delete
+```
+
+QC check on files after primers were trimmed
+
+use fastqc 
+```{r, engine="bash"}
+cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/fastq-files/cutadapt
+/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software/FastQC/fastqc *fastq.gz -o /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/output/after-cutadapt-qc
+```
+
+make multiqc report to check files after trimming primers
+```{r, engine="bash"}
+cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/output/after-cutadapt-qc
+
+multiqc .
+```
+![screenshot of multiqc mean quality scores after cutadapt](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/after-cutadapt_multiqc.png)
+
+# Filter Reads
+---
+title: "03-filter-reads"
+output: html_document
+date: "2023-05-04"
+---
+
+
+load packages
+```{r, eval=TRUE}
+library(BiocManager)
+library(ShortRead)
+library("dada2")
+```
+
+# Inspect read quality
+
+Get sample names
+```{r, eval=TRUE}
+# Forward and reverse fastq filenames have the format:
+cutFs <- sort(list.files(path.cut, pattern = "_R1_001.fastq.gz", full.names = TRUE))
+cutRs <- sort(list.files(path.cut, pattern = "_R2_001.fastq.gz", full.names = TRUE))
+
+# Extract sample names, assuming filenames have format:
+get.sample.name <- function(fname) strsplit(basename(fname), "_")[[1]][1]
+sample.names <- unname(sapply(cutFs, get.sample.name))
+head(sample.names)
+```
+
+plot forward read quality for first two files
+```{r, eval=TRUE}
+plotQualityProfile(cutFs[1:2])
+```
+
+plot reverse read quality for first two files
+```{r, eval=TRUE}
+plotQualityProfile(cutRs[1:2])
+```
+The forward reads are better quality, as we might expect.
+
+
+```{r, eval=TRUE}
+filtFs <- file.path(path.cut, "filtered", basename(cutFs))
+filtRs <- file.path(path.cut, "filtered", basename(cutRs))
+```
+
+```{r, eval=TRUE}
+# get sample names to see which files match
+get.sample.name <- function(fname) strsplit(basename(fname), "_")[[1]][1]
+sample.namesF <- unname(sapply(cutFs, get.sample.name))
+sample.namesR <- unname(sapply(cutRs, get.sample.name))
+```
+
+Check for differences between lists and remove files that don't have a matching pair
+```{r, eval=TRUE}
+difsR <- setdiff(sample.namesR,sample.namesF)
+difsR
+difsF <- setdiff(sample.namesF,sample.namesR)
+difsF
+
+```
+It looks like there are no differences, so we can proceed
+
+
+## filter reads using quality thresholds
+maxN: allows zero Ns
+max EE: set to 5 for forward and reverse
+truncQ: set to 2
+minlen: minimum length is 100 reads
+rm.phix:remove phix
+this step takes a long time
+```{r}
+out <- filterAndTrim(cutFs, filtFs, cutRs, filtRs, maxN = 0, maxEE = c(5, 5), 
+    truncQ = 2, minLen = 100, rm.phix = TRUE, compress = TRUE, multithread = TRUE) 
+```
+
+Check how many samples went through filtering
+```{bash, eval=TRUE}
+cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/fastq-files/cutadapt
+
+ls | wc -l
+
+cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/fastq-files/cutadapt/filtered
+
+ls | wc -l
+```
+
+learn the error rates
+
+forward reads
+```{r, eval=TRUE, cache=TRUE}
+errF <- learnErrors(filtFs, multithread=TRUE)
+```
+reverse reads
+```{r, eval=TRUE, cache=TRUE}
+errR <- learnErrors(filtRs, multithread=TRUE)
+```
+
+plot the errors
+```{r, eval=TRUE}
+plotErrors(errF, nominalQ=TRUE)
+#looks okay! good to proceed
+```
+```{r, eval=TRUE}
+plotErrors(errR, nominalQ=TRUE)
+#looks okay! good to proceed
+```
+
+QC check on files after filtering were trimmed
+
+use fastqc 
+```{r, engine="bash"}
+cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/fastq-files/cutadapt/filtered
+/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software/FastQC/fastqc *fastq.gz -o /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/output/after-filtering-qc
+```
+
+make multiqc report to check files after trimming primers
+```{r, engine="bash"}
+cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/output/after-filtering-qc
+
+multiqc .
+```
+
+![screenshot of multiqc mean quality scores after filtering](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/after-filtering_multiqc.png)
+
+
+# Pair Forward and Reverse Reads
+
+## Dereplication
+
+This step takes a little while
+```{r, eval=TRUE}
+derepFs <- derepFastq(filtFs, verbose=TRUE)
+derepRs <- derepFastq(filtRs, verbose=TRUE)
+# Name the derep-class objects by the sample names
+names(derepFs) <- sample.names
+names(derepRs) <- sample.names
+```
+
+Apply core sample inference algorithm
+```{r, eval=TRUE}
+dadaFs <- dada(derepFs, err=errF, multithread=TRUE)
+```
+
+```{r, eval=TRUE}
+dadaRs <- dada(derepRs, err=errR, multithread=TRUE)
+```
+
+Merge Paired Reads
+```{r, eval=TRUE, cache=TRUE}
+mergers <- mergePairs(dadaFs, derepFs, dadaRs, derepRs, verbose=TRUE)
+# Inspect the merger data.frame from the first sample
+head(mergers[[1]])
+```
+
+Construct ASV table
+make sequence table
+```{r, eval=TRUE}
+seqtab <- makeSequenceTable(mergers)
+```
+
+inspect sequence length distributions
+eventually make histogram here
+```{r, eval=TRUE}
+table(nchar(getSequences(seqtab)))
+```
+
+remove chimeras
+```{r, eval=TRUE}
+seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE, verbose=TRUE)
+```
+
+evaluate percentage of reads were chimeric
+```{r, eval=TRUE}
+sum(seqtab.nochim)/sum(seqtab)
+```
+chimeras account for very low perentage of reads
+
+
+track how many reads made it through the pipeline
+```{r}
+getN <- function(x) sum(getUniques(x))
+track <- cbind(out, sapply(dadaFs, getN), sapply(dadaRs, getN), sapply(mergers, getN), rowSums(seqtab.nochim))
+
+colnames(track) <- c("input", "filtered", "denoisedF", "denoisedR", "merged", "nonchim")
+rownames(track) <- sample.names
+head(track)
+```
+no step had a majority of the reads removed
+The step that creates the out table takes too long to run, so a screenshot of this table is included below
+
+![screenshot of tracking table](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/Tracking_Table.png)
+
+# Blast
+load packages
+```{r, eval=TRUE}
+library(dplyr)
+library(tidyverse)
+```
+
+download software from NCBI
+```{r, engine="bash"}
+#change directory
+cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software
+#download software
+curl -O https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/ncbi-blast-2.14.0+-x64-macosx.tar.gz
+```
+
+
+unzip
+```{r, engine="bash"}
+cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software
+tar -xzf ncbi-blast-2.14.0+-x64-macosx.tar.gz
+```
+
+Check if it's working
+I had to go into my computer settings and give permissions to use blast because it is from and "unidentified developer"
+```{r, engine="bash", eval=TRUE}
+/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software/ncbi-blast-2.14.0+/bin/blastx -h
+```
+
+## Make blast database
+
+Download the reference. The reference used here is from metazoogene and is the file for all marine fauna and flora of the world oceans
+```{r, engine="bash"}
+#download from url
+cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data
+curl -O https://www.st.nmfs.noaa.gov/nauplius/media/metazoogene/atlas/data-src/MZGfasta-coi__MZGdbALL__o00__A.fasta
+#unzip
+gunzip -k MZGfasta-coi__MZGdbALL__o00__A.fasta
+```
+
+make the blast database
+I changed dbtype from prot to nucl
+```{r, engine="bash"}
+/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software/ncbi-blast-2.14.0+/bin/makeblastdb \
+-in /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/MZGfasta-coi__MZGdbALL__o00__A.fasta \
+-dbtype nucl \
+-out /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/blastdb/MZGfasta-coi__MZGdbALL__o00__A
+```
+
+
+Write output to a fasta file that can be blasted
+transpose table
+```{r, eval=TRUE}
+seqtab.nochim_trans <- as.data.frame(t(seqtab.nochim)) %>% rownames_to_column(var = "sequence") %>% 
+    rowid_to_column(var = "OTUNumber") %>% mutate(OTUNumber = sprintf("otu%04d", 
+    OTUNumber)) %>% mutate(sequence = str_replace_all(sequence, "(-|\\.)", ""))
+```
+
+convert to fasta file
+```{r, eval=TRUE}
+df <- seqtab.nochim_trans
+seq_out <- Biostrings::DNAStringSet(df$sequence)
+
+names(seq_out) <- str_c(df$OTUNumber, df$Supergroup, df$Division, df$Class, 
+    df$Order, df$Family, df$Genus, df$Species, sep = "|")
+
+Biostrings::writeXStringSet(seq_out, str_c( "Zoop_ASV.fasta"), compress = FALSE, 
+    width = 20000)
+
+#I had to move this file from my working directory to my data directory
+```
+
+examine fasta file
+```{r, engine="bash", eval=TRUE}
+head /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/Zoop_ASV.fasta
+```
+
+## Run Blast
+
+change blastx to blastn
+```{r, engine="bash"}
+/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software/ncbi-blast-2.14.0+/bin/blastn \
+-query /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/Zoop_ASV.fasta \
+-db /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/blastdb/MZGfasta-coi__MZGdbALL__o00__A \
+-out /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/output/Zoop_ASV.tab \
+-num_threads 8 \
+-max_target_seqs 1 \
+-outfmt 6
+```
+
+Examine blast output
+```{r, engine="bash", eval=TRUE}
+head -2 ../output/Zoop_ASV.tab
+wc -l ../output/Zoop_ASV.tab
+```
+These are species we expect to see - looks like blast worked!
