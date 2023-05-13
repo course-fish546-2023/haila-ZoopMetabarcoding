@@ -512,9 +512,11 @@ These are species we expect to see - looks like blast worked!
 
 # Visualization
 
+
 ## Filter Blast hits and merge tables
 
 merge Blast IDs with OTU table
+
 ```{r, eval=TRUE}
 #change directory
 setwd("/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/output")
@@ -528,15 +530,11 @@ colnames(Zoop_ASV) = c("OTUNumber", "Species", "pident", "length","mismatch","ga
 #merge tables by otu number
 read_table<-left_join(Zoop_ASV, seqtab.nochim_trans, by = join_by("OTUNumber" == "OTUNumber"))
 ```
-Visualize the table
+Visualize part of the table here
+
+
+Filter hits
 ```{r}
-datatable(read_table)
-```
-
-
-
-## Filter hits based on quality
-```{r, eval=TRUE}
 # remove ASV with sequences shorter than 300 bp
 read_table <- subset(read_table, read_table$length>300) 
 
@@ -546,7 +544,7 @@ read_table <- subset(read_table, read_table$pident>95)
 ```
 
 Sum Sequences by Taxa
-```{r, eval=TRUE}
+```{r}
 #remove unneeded columns
 read_table_summed<- read_table[ -c(1,3:13) ]
 
@@ -563,14 +561,16 @@ read_table_summed<-by_species %>%
 
 
 ## NMDS
-My code for this section is working in rstudio, but when I go to knit the document, I am getting an error in the NMDS step. I have added screenshots of the plots that result from the code in rstudio.
 
 Prep table for NMDS
 ```{r}
 # transpose
-read_table_transposed <- as.data.frame(transpose(read_table_summed))
-#remove first row
-read_table_transposed <- as.data.frame(read_table_transposed[-1,]) 
+read_table_transposed <- transpose(read_table_summed)
+# get row and colnames in order
+colnames(read_table_transposed) <- rownames(read_table_summed)
+rownames(read_table_transposed) <- colnames(read_table_summed)
+#move first row to column names
+read_table_transposed<-row_to_names(read_table_transposed, 1, remove_rows_above = FALSE) 
 #convert to matrix
 community_matrix<-as.matrix(read_table_transposed)
 #convert to numeric matrix
@@ -583,22 +583,23 @@ community_matrix<-asin(sqrt(community_matrix))
 ```
 
 Run NMDS
-```{r, eval=TRUE}
+```{r}
 #run NMDS
 NMDS=metaMDS(community_matrix,distance="bray",trymax=100)
 ```
-```{r, eval=TRUE}
+
+```{r}
 stressplot(NMDS)
 plot(NMDS)
 NMDS
 ```
 Make envrionmental table
-```{r, eval=TRUE}
+```{r}
 #export file names
-env <- as.data.frame(colnames(read_table_summed))
-env <- as.data.frame(env[-1,])
+env <- as.data.frame(row.names(read_table_transposed))
 #change column name
-colnames(env)[1] <- "file"
+colnames(env)[colnames(env) == "row.names(read_table_transposed)"] <- "file"
+
 #create year column
 env$year <- substr(env$file, 1, 4)
 #create month column
@@ -619,7 +620,7 @@ data.scores$month = env$month
 data.scores$run = env$run
 ```
 
-Create station plot
+create station plot
 ```{r}
 station_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) + 
      geom_point(data = data.scores, aes(colour = station), size = 3, alpha = 0.5) + 
@@ -634,10 +635,12 @@ station_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) +
 station_plot
 
 ```
+
 ![](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/station_plot.png)
 There is quite a bit of overlap among stations, but you can see that some stations are distinct from one another. For example, P22 is different from P38, but P38 and P12 are very similar.
 
-Create year plot
+create year plot
+
 ```{r}
 year_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) + 
      geom_point(data = data.scores, aes(colour = year), size = 3, alpha = 0.5) + 
@@ -655,7 +658,7 @@ year_plot
 ![](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/year_plot.png)
 between these two years, there doesn't seem to be much difference
 
-Create month plot
+create month plot
 ```{r}
 month_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) + 
      geom_point(data = data.scores, aes(colour = month), size = 3, alpha = 0.5) + 
@@ -673,7 +676,7 @@ month_plot
 ![](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/month_plot.png)
 There seem to be some clear seasonal differences along axis 1 - April appears to be distinct
 
-Create run plot
+create run plot
 ```{r}
 run_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) + 
      geom_point(data = data.scores, aes(colour = run), size = 3, alpha = 0.5) + 
@@ -691,8 +694,8 @@ run_plot
 ![](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/run_plot.png)
 
 ## Diversity Indices
-Here I am calculating the shannon's diversity index.
-```{r, eval=TRUE}
+
+```{r}
 #convert to matrix
 diversity<-as.matrix(read_table_transposed)
 #convert to numeric matrix
@@ -704,12 +707,12 @@ rownames(diversity_matrix) <- rownames(diversity)
 ```
 
 get shannon diversity index
-```{r, eval=TRUE}
+```{r}
 shannon_scores<-as.data.frame(diversity(diversity_matrix, index="shannon"))
 ```
 
 add environment columns back in
-```{r, eval=TRUE}
+```{r}
 #change column name
 colnames(shannon_scores)[1] <- "shannon_index"
 #add environmental columns
@@ -720,19 +723,19 @@ shannon_scores$run = env$run
 ```
 
 make violin plot
-```{r, eval=TRUE}
+```{r}
 diversity<- ggviolin(shannon_scores, x = "station", y = "shannon_index",
  add = "boxplot", fill = "station") 
 diversity
 ```
-
+![](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/violin_plot.png)
 Overall, the highest diversity was seen at P22, which is the station located in the Strait of Juan de Fuca. This site is closest to the ocean, so it may contain inland taxa as well as more offshore taxa.
 
 
 ## Taxa plot
 
 get the top 20 most abundant species
-```{r, eval=TRUE}
+```{r}
 species_sums <- as.data.frame(colSums(diversity_matrix))
 colnames(species_sums)[1] <- "abundance"
 species_sums$abundance<-as.numeric(species_sums$abundance)
@@ -744,8 +747,9 @@ top_20_species <- head(species_sums, 20)
 ```
 
 plot
-```{r, eval=TRUE}
+```{r}
 ggplot(top_20_species, aes(y=abundance, x=reorder(species, abundance))) + 
     geom_bar(position="dodge", stat="identity")+ theme_bw()+coord_flip()+ylab("total reads")+xlab("species")
 ```
+![](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/taxa_plot.png)
 The samples were dominated by Calanus pacificus (a copepod) and Aegina citrea (a jellyfish). Other abundant species included eutonina indicans and Clytia gregaria, two other jellyfish. Other common copepods like Centropages abdonminalis and Metridia pacifica were also represented
