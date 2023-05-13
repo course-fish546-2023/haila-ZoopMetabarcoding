@@ -1,0 +1,264 @@
+---
+title: "06-Visualization"
+output: html_document
+date: "2023-05-12"
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,         # Display code chunks
+  eval = FALSE,        # Evaluate code chunks
+  warning = FALSE,     # Hide warnings
+  message = FALSE,     # Hide messages
+  fig.width = 6,       # Set plot width in inches
+  fig.height = 4,      # Set plot height in inches
+  fig.align = "center" # Align plots to the center
+)
+```
+
+load packages
+```{r, eval=TRUE}
+library(dplyr)
+library(janitor)
+library(vegan)
+library(data.table)
+library(ggplot2)
+library(ggpubr)
+```
+
+
+# Visualization
+
+
+## Filter Blast hits and merge tables
+
+merge Blast IDs with OTU table
+
+```{r, eval=TRUE}
+#change directory
+setwd("/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/output")
+
+#read ASV table into R
+Zoop_ASV<-read.table("Zoop_ASV.tab")
+
+#rename columns
+colnames(Zoop_ASV) = c("OTUNumber", "Species", "pident", "length","mismatch","gapopen","qstart","qend","sstart","send","evalue","bitscore")
+
+#merge tables by otu number
+read_table<-left_join(Zoop_ASV, seqtab.nochim_trans, by = join_by("OTUNumber" == "OTUNumber"))
+```
+Visualize part of the table here
+
+
+Filter hits
+```{r, eval=TRUE}
+# remove ASV with sequences shorter than 300 bp
+read_table <- subset(read_table, read_table$length>300) 
+
+#remove ASV with pident <95%
+read_table <- subset(read_table, read_table$pident>95) 
+
+```
+
+Sum Sequences by Taxa
+```{r, eval=TRUE}
+#remove unneeded columns
+read_table_summed<- read_table[ -c(1,3:13) ]
+
+#remove prefix
+read_table_summed$Species <- sub(".*__", "", read_table_summed$Species)
+
+#summarize by species
+by_species <- read_table_summed %>%
+  group_by(Species)
+
+read_table_summed<-by_species %>%
+  summarise_all(sum)
+```
+
+
+## NMDS
+
+Prep table for NMDS
+```{r, eval=TRUE}
+# transpose
+read_table_transposed <- transpose(read_table_summed)
+# get row and colnames in order
+colnames(read_table_transposed) <- rownames(read_table_summed)
+rownames(read_table_transposed) <- colnames(read_table_summed)
+#move first row to column names
+read_table_transposed<-row_to_names(read_table_transposed, 1, remove_rows_above = FALSE) 
+#convert to matrix
+community_matrix<-as.matrix(read_table_transposed)
+#convert to numeric matrix
+community_matrix<- matrix(as.numeric(community_matrix),   
+                  ncol = ncol(community_matrix))
+#convert to proportions
+community_matrix<-community_matrix/rowSums(community_matrix)
+#arcsine sqrt transformation
+community_matrix<-asin(sqrt(community_matrix))
+```
+
+Run NMDS
+```{r, eval=TRUE}
+#run NMDS
+NMDS=metaMDS(community_matrix,distance="bray",trymax=100)
+```
+```{r, eval=TRUE}
+stressplot(NMDS)
+plot(NMDS)
+NMDS
+```
+Make envrionmental table
+```{r, eval=TRUE}
+#export file names
+env <- as.data.frame(row.names(read_table_transposed))
+#change column name
+colnames(env)[colnames(env) == "row.names(read_table_transposed)"] <- "file"
+
+#create year column
+env$year <- substr(env$file, 1, 4)
+#create month column
+env$month <- substr(env$file, 5, 7)
+#create station column
+env$station <- str_extract(env$file, "P12|P22|P28|P38|P402|P4|P8")
+#create run column
+env$run <- str_extract(env$file, "48samples|-P1|-P2")
+```
+
+extract scores
+```{r, eval=TRUE}
+data.scores = as.data.frame(scores(NMDS)$sites)
+#add environmental columns
+data.scores$station = env$station
+data.scores$year = env$year
+data.scores$month = env$month
+data.scores$run = env$run
+```
+
+create station plot
+```{r, eval=TRUE}
+station_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) + 
+     geom_point(data = data.scores, aes(colour = station), size = 3, alpha = 0.5) + 
+     scale_colour_manual(values = c("orange", "steelblue","darkgreen","violet","red","darkblue","limegreen")) + 
+     theme(axis.title = element_text(size = 10, face = "bold", colour = "grey30"), 
+     panel.background = element_blank(), panel.border = element_rect(fill = NA, colour = "grey30"), 
+     axis.ticks = element_blank(), axis.text = element_blank(), legend.key = element_blank(), 
+     legend.title = element_text(size = 10, face = "bold", colour = "grey30"), 
+     legend.text = element_text(size = 9, colour = "grey30")) +
+     labs(colour = "Station")
+     
+station_plot
+
+```
+There is quite a bit of overlap among stations, but you can see that some stations are distinct from one another. For example, P22 is different from P38, but P38 and P12 are very similar.
+
+create year plot
+
+```{r, eval=TRUE}
+year_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) + 
+     geom_point(data = data.scores, aes(colour = year), size = 3, alpha = 0.5) + 
+     scale_colour_manual(values = c("orange", "steelblue")) + 
+     theme(axis.title = element_text(size = 10, face = "bold", colour = "grey30"), 
+     panel.background = element_blank(), panel.border = element_rect(fill = NA, colour = "grey30"), 
+     axis.ticks = element_blank(), axis.text = element_blank(), legend.key = element_blank(), 
+     legend.title = element_text(size = 10, face = "bold", colour = "grey30"), 
+     legend.text = element_text(size = 9, colour = "grey30")) +
+     labs(colour = "Year")
+     
+year_plot
+
+```
+between these two years, there doesn't seem to be much difference
+
+create month plot
+```{r, eval=TRUE}
+month_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) + 
+     geom_point(data = data.scores, aes(colour = month), size = 3, alpha = 0.5) + 
+     scale_colour_manual(values = c("orange", "steelblue","darkgreen")) + 
+     theme(axis.title = element_text(size = 10, face = "bold", colour = "grey30"), 
+     panel.background = element_blank(), panel.border = element_rect(fill = NA, colour = "grey30"), 
+     axis.ticks = element_blank(), axis.text = element_blank(), legend.key = element_blank(), 
+     legend.title = element_text(size = 10, face = "bold", colour = "grey30"), 
+     legend.text = element_text(size = 9, colour = "grey30")) +
+     labs(colour = "Month")
+     
+month_plot
+
+```
+There seem to be some clear seasonal differences along axis 1 - April appears to be distinct
+
+create run plot
+```{r, eval=TRUE}
+run_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) + 
+     geom_point(data = data.scores, aes(colour = run), size = 3, alpha = 0.5) + 
+     scale_colour_manual(values = c("orange", "steelblue","darkgreen")) + 
+     theme(axis.title = element_text(size = 10, face = "bold", colour = "grey30"), 
+     panel.background = element_blank(), panel.border = element_rect(fill = NA, colour = "grey30"), 
+     axis.ticks = element_blank(), axis.text = element_blank(), legend.key = element_blank(), 
+     legend.title = element_text(size = 10, face = "bold", colour = "grey30"), 
+     legend.text = element_text(size = 9, colour = "grey30")) +
+     labs(colour = "Run")
+     
+run_plot
+
+```
+
+## Diversity Indices
+
+```{r}
+#convert to matrix
+diversity<-as.matrix(read_table_transposed)
+#convert to numeric matrix
+diversity_matrix<- matrix(as.numeric(diversity),   
+                  ncol = ncol(diversity))
+#add in row and column labels
+colnames(diversity_matrix) <- colnames(diversity)
+rownames(diversity_matrix) <- rownames(diversity)
+```
+
+get shannon diversity index
+```{r}
+shannon_scores<-as.data.frame(diversity(diversity_matrix, index="shannon"))
+```
+
+add environment columns back in
+```{r}
+#change column name
+colnames(shannon_scores)[1] <- "shannon_index"
+#add environmental columns
+shannon_scores$station = env$station
+shannon_scores$year = env$year
+shannon_scores$month = env$month
+shannon_scores$run = env$run
+```
+
+make violin plot
+```{r}
+diversity<- ggviolin(shannon_scores, x = "station", y = "shannon_index",
+ add = "boxplot", fill = "station") 
+diversity
+```
+
+Overall, the highest diversity was seen at P22, which is the station located in the Strait of Juan de Fuca. This site is closest to the ocean, so it may contain inland taxa as well as more offshore taxa.
+
+
+## Taxa plot
+
+get the top 20 most abundant species
+```{r}
+species_sums <- as.data.frame(colSums(diversity_matrix))
+colnames(species_sums)[1] <- "abundance"
+species_sums$abundance<-as.numeric(species_sums$abundance)
+species_sums <- rownames_to_column(species_sums, "species")
+species_sums <-as.data.frame(species_sums[order(-species_sums$abundance),])
+
+#get top 20 species
+top_20_species <- head(species_sums, 20)
+```
+
+plot
+```{r}
+ggplot(top_20_species, aes(y=abundance, x=reorder(species, abundance))) + 
+    geom_bar(position="dodge", stat="identity")+ theme_bw()+coord_flip()+ylab("total reads")+xlab("species")
+```
+The samples were dominated by Calanus pacificus (a copepod) and Aegina citrea (a jellyfish). Other abundant species included eutonina indicans and Clytia gregaria, two other jellyfish. Other common copepods like Centropages abdonminalis and Metridia pacifica were also represented

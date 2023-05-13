@@ -1,7 +1,10 @@
 ---
-title: "02-trim-primers"
-output: html_document
-date: "2023-04-25"
+title: "Zooplankton COI Metabarcoding Taxonomic ID Pipeline"
+author: "Haila Schultz"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
 ---
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
@@ -20,18 +23,39 @@ The report is located here: https://rpubs.com/HailaSchultz/full-pipeline
 
 This project utilizes metabarcoding and the LrCOI marker to taxonomically identify zooplankton samples from Washington Ocean Acidification Center Cruises. Samples were collected from seven stations spread throughout Puget Sound in April, July, and September 2018-2020. Zooplankton samples were collected using a 200 um net towed vertically from 10 meters from the bottom of the water column to the surface. A 5 ml subsample (settled volume) of each sample was homogenized, dried, and subsampled before being sent off to Ohio State University for library prep and sequencing.
 
+![Map of the seven sites visited](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/woac_map.png)
+
+This workflow is adapted from the following pipeline: https://benjjneb.github.io/dada2/ITS_workflow.html
 
 # Download Data
-This is step 1 of my project workflow. In this step, I am organizing my fastq files and checking their hash values. I originally downloaded my data from a shared google drive folder onto my computer and then uploaded into RStudio. Originally, the fastq files were located in multiple layers of directories.
+This is step 1 of my project workflow. In this step, I am organizing my fastq files and checking their hash values. I downloaded my data from a shared google drive folder onto my computer and then uploaded into RStudio. Originally, the fastq files were located in multiple layers of directories.
 
+Install dada2 package using BiocManager 
+```{r}
+install.packages('ShortRead')
+install.packages("BiocManager")
+BiocManager::install("dada2")
+```
 
 load packages
-```{r}
+```{r, eval=TRUE}
 library(knitr)
+library(BiocManager)
+library(ShortRead)
+library("dada2")
+library(dplyr)
+library(janitor)
+library(vegan)
+library(data.table)
+library(ggplot2)
+library(ggpubr)
+library(dplyr)
+library(tidyverse)
+library(DT)
 ```
 
 
-Move files into one folder
+## Move files into one folder
 
 move multiple files from multiple layers of directories into the data directory
 ```{r, engine="bash"}
@@ -41,45 +65,23 @@ find . -name '*.gz' -exec mv {} ../data/fastq-files/ \;
 
 
 create checksums file for all fastq files in data folder
-```{r, engine="bash", eval=TRUE}
+```{r, engine="bash", eval=TRUE, output.lines=4}
 cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/
 shasum ../data/fastq-files/*.gz > fastq_checksums.sha
 cat fastq_checksums.sha
 ```
 
 check if files match original
-```{r, engine="bash", eval=TRUE}
+```{r, engine="bash", eval=TRUE, output.lines=4}
 cd ../data
 shasum -c fastq_checksums.sha
 ```
 
 
 
-This is step 2 of my project workflow. Here, I use cutadapt to trim the primers off of my reads.
+# Remove Primers with Cutadapt
 
-This workflow is adapted from the following pipeline: https://benjjneb.github.io/dada2/ITS_workflow.html
-
-# Remove Adapters with Cutadapt
-
-install r packages
-```{r}
-install.packages('ShortRead')
-install.packages("BiocManager")
-BiocManager::install("dada2")
-install.packages('ShortRead')
-```
-
-load packages
-```{r, eval=TRUE}
-library(BiocManager)
-library(ShortRead)
-library("dada2")
-```
-
-
-To get cutadapt, I downloaded the miniconda installer using curl 
-
-install cutadapt software
+To get the cutadapt software, I downloaded the miniconda installer using curl 
 ```{r, engine="bash"}
 #download miniconda from url
 cd ../software
@@ -87,7 +89,7 @@ curl -O https://repo.anaconda.com/miniconda/Miniconda3-py310_23.3.1-0-MacOSX-arm
 
 ```
 
-and then moved to the directory it was in by typing `cd software` in the terminal. I then typed bash Miniconda3-py310_23.3.1-0-MacOSX-arm64.sh in the terminal to start the setup process. Conda is located in: /Users/hailaschultz/miniconda3. 
+I then moved to the directory it was in by typing `cd software` in the terminal. I then typed bash Miniconda3-py310_23.3.1-0-MacOSX-arm64.sh in the terminal to start the setup process. Conda is located in: /Users/hailaschultz/miniconda3. 
 
 I checked that installation worked by typing `conda list` in the terminal. In the terminal I then typed:
 `conda config --add channels defaults
@@ -103,7 +105,9 @@ I ran `conda init bash`
 
 To activate the conda environment, in the terminal I typed `conda activate cutadaptenv`
 
-# Remove Primers
+## Prepare data
+
+First, I wanted to check the quality of the raw data to compare with future steps in the pipeline.
 download fastqc
 ```{r, engine="bash"}
 curl -O https://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v0.11.7.zip
@@ -126,9 +130,7 @@ multiqc .
 
 ![screenshot of multiqc mean qualit scores](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/raw-data_multiqc.png)
 
-Make lists of forward and reverse read files
-
-list files for forward and reverse reads
+I then mad lists of the file names in order to process multiple files at once. I also specified the primer sequences used in this prject.
 ```{r, eval=TRUE, cache=TRUE}
 #set file path
 path <- "../data/fastq-files"
@@ -142,8 +144,6 @@ REV <- "TANACYTCNGGRTGNCCRAARAAYCA"
 #in the reverse primer, I replaced I with N
 ```
 
-
-Check if primers are actually in data
 
 get orientations of primers
 ```{r, eval=TRUE, cache=TRUE}
@@ -159,8 +159,8 @@ FWD.orients <- allOrients(FWD)
 REV.orients <- allOrients(REV)
 FWD.orients
 ```
-
-count number of times primers occur in the first sample
+I then checked if the primers were actually present in my files.
+The followincg code counts the number of times primers occur in the first sample.
 ```{r, eval=TRUE, cache=TRUE}
 primerHits <- function(primer, fn) {
     # Counts number of reads in which the primer is found
@@ -172,15 +172,16 @@ rbind(FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = fnFs[[1]]),
     REV.ForwardReads = sapply(REV.orients, primerHits, fn = fnFs[[1]]), 
     REV.ReverseReads = sapply(REV.orients, primerHits, fn = fnRs[[1]]))
 ```
-Tell R the path to the cutadapt command
+It looks like the forward and reverse primers are present in the forward and reverse reads.
 
+## Use Cutadapt
+Tell R the path to the cutadapt software
 ```{r, eval=TRUE, cache=TRUE}
 cutadapt <- "/Users/hailaschultz/miniconda3/envs/cutadaptenv/bin/cutadapt" 
+#verify that r knows where to find teh software by asking for the version
 system2(cutadapt, args = "--version") 
 ```
-
-
-use cutadapt
+Tell cutadapt what to cut
 ```{r, eval=TRUE, cache=TRUE}
 path.cut <- file.path(path, "cutadapt")
 if(!dir.exists(path.cut)) dir.create(path.cut)
@@ -204,27 +205,25 @@ for(i in seq_along(fnFs)) {
 }
 ```
 
-
-Check if adapters were trimmed
+Check if adapters were actuall trimmed
 ```{r, eval=TRUE, cache=TRUE}
 rbind(FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = fnFs.cut[[1]]), 
     FWD.ReverseReads = sapply(FWD.orients, primerHits, fn = fnRs.cut[[1]]), 
     REV.ForwardReads = sapply(REV.orients, primerHits, fn = fnFs.cut[[1]]), 
     REV.ReverseReads = sapply(REV.orients, primerHits, fn = fnRs.cut[[1]]))
-#there were a few reverse reads that were not trimmed, but overall it looks good
+
 ```
+There were a few reverse reads that were not trimmed, but overall it looks good
+However, after trimming the primers, about half of the files ended up with zero data/reads. I think it is an issue with the read names. The error I get is: ERROR: Error in sequence file at unknown line: Reads are improperly paired. Read name 'M02815:67:000000000-KDDDG:1:1101:17448:1214 1:N:0:CGGAGCCT+GTAAGGAG' in file 1 does not match 'M02815:67:000000000-KDDDG:1:1101:20493:1232 2:N:0:CGTACTAG+CGTCTAAT' in file 2, etc.
 
 
-After trimming the primers, about half of the files ended up with zero data/reads. I think it is an issue with the read names. The error I get is along the lines of "error in sequence file at unknown line reads are improperly paired, read names don't match", I need to figure out what happened here, but for now I will proceed with the files that are okay and have pairs.
-
-
-delete files that didn't make it through cutadapt - smaller than 1 MB in the cutadapt directory
+Delete files that didn't make it through cutadapt - smaller than 1 MB in the cutadapt directory
 ```{r, engine="bash"}
 cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/fastq-files/cutadapt
 find . -type f -name "*.gz" -size -1M -delete
 ```
 
-QC check on files after primers were trimmed
+## QC check on files after primers were trimmed
 
 use fastqc 
 ```{r, engine="bash"}
@@ -241,23 +240,9 @@ multiqc .
 ![screenshot of multiqc mean quality scores after cutadapt](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/after-cutadapt_multiqc.png)
 
 # Filter Reads
----
-title: "03-filter-reads"
-output: html_document
-date: "2023-05-04"
----
 
-
-load packages
-```{r, eval=TRUE}
-library(BiocManager)
-library(ShortRead)
-library("dada2")
-```
-
-# Inspect read quality
-
-Get sample names
+## Inspect read quality
+Get the sample names for the files that have been trimmed
 ```{r, eval=TRUE}
 # Forward and reverse fastq filenames have the format:
 cutFs <- sort(list.files(path.cut, pattern = "_R1_001.fastq.gz", full.names = TRUE))
@@ -281,11 +266,13 @@ plotQualityProfile(cutRs[1:2])
 The forward reads are better quality, as we might expect.
 
 
+Designate file names location for the filtered files
 ```{r, eval=TRUE}
 filtFs <- file.path(path.cut, "filtered", basename(cutFs))
 filtRs <- file.path(path.cut, "filtered", basename(cutRs))
 ```
 
+Before filtering, verify that all of your files have a matching pair. Both the forward and reverse reads for each sample are required for this step.
 ```{r, eval=TRUE}
 # get sample names to see which files match
 get.sample.name <- function(fname) strsplit(basename(fname), "_")[[1]][1]
@@ -310,7 +297,7 @@ max EE: set to 5 for forward and reverse
 truncQ: set to 2
 minlen: minimum length is 100 reads
 rm.phix:remove phix
-this step takes a long time
+Note that this step takes a long time
 ```{r}
 out <- filterAndTrim(cutFs, filtFs, cutRs, filtRs, maxN = 0, maxEE = c(5, 5), 
     truncQ = 2, minLen = 100, rm.phix = TRUE, compress = TRUE, multithread = TRUE) 
@@ -329,11 +316,11 @@ ls | wc -l
 
 learn the error rates
 
-forward reads
+forward read error rates
 ```{r, eval=TRUE, cache=TRUE}
 errF <- learnErrors(filtFs, multithread=TRUE)
 ```
-reverse reads
+reverse read error rates
 ```{r, eval=TRUE, cache=TRUE}
 errR <- learnErrors(filtRs, multithread=TRUE)
 ```
@@ -348,7 +335,7 @@ plotErrors(errR, nominalQ=TRUE)
 #looks okay! good to proceed
 ```
 
-QC check on files after filtering were trimmed
+## QC check on files after filtering were trimmed
 
 use fastqc 
 ```{r, engine="bash"}
@@ -388,15 +375,14 @@ dadaFs <- dada(derepFs, err=errF, multithread=TRUE)
 dadaRs <- dada(derepRs, err=errR, multithread=TRUE)
 ```
 
-Merge Paired Reads
+##nMerge Paired Reads
 ```{r, eval=TRUE, cache=TRUE}
 mergers <- mergePairs(dadaFs, derepFs, dadaRs, derepRs, verbose=TRUE)
 # Inspect the merger data.frame from the first sample
 head(mergers[[1]])
 ```
 
-Construct ASV table
-make sequence table
+## Construct sequence table
 ```{r, eval=TRUE}
 seqtab <- makeSequenceTable(mergers)
 ```
@@ -407,7 +393,7 @@ eventually make histogram here
 table(nchar(getSequences(seqtab)))
 ```
 
-remove chimeras
+## remove chimeras
 ```{r, eval=TRUE}
 seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE, verbose=TRUE)
 ```
@@ -434,13 +420,8 @@ The step that creates the out table takes too long to run, so a screenshot of th
 ![screenshot of tracking table](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/Tracking_Table.png)
 
 # Blast
-load packages
-```{r, eval=TRUE}
-library(dplyr)
-library(tidyverse)
-```
 
-download software from NCBI
+## download software from NCBI
 ```{r, engine="bash"}
 #change directory
 cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software
@@ -448,8 +429,7 @@ cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software
 curl -O https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/ncbi-blast-2.14.0+-x64-macosx.tar.gz
 ```
 
-
-unzip
+unzip software
 ```{r, engine="bash"}
 cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software
 tar -xzf ncbi-blast-2.14.0+-x64-macosx.tar.gz
@@ -472,8 +452,8 @@ curl -O https://www.st.nmfs.noaa.gov/nauplius/media/metazoogene/atlas/data-src/M
 gunzip -k MZGfasta-coi__MZGdbALL__o00__A.fasta
 ```
 
-make the blast database
-I changed dbtype from prot to nucl
+Make the database
+Since we are evaluating nucleotide seqeunces, make sure you are using -dbtype nucl
 ```{r, engine="bash"}
 /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software/ncbi-blast-2.14.0+/bin/makeblastdb \
 -in /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/MZGfasta-coi__MZGdbALL__o00__A.fasta \
@@ -482,7 +462,7 @@ I changed dbtype from prot to nucl
 ```
 
 
-Write output to a fasta file that can be blasted
+## Write output to a fasta file that can be blasted
 transpose table
 ```{r, eval=TRUE}
 seqtab.nochim_trans <- as.data.frame(t(seqtab.nochim)) %>% rownames_to_column(var = "sequence") %>% 
@@ -511,7 +491,7 @@ head /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/Zoop_ASV.fasta
 
 ## Run Blast
 
-change blastx to blastn
+Since we are looking at nucleotides, make sure you are using blastn.
 ```{r, engine="bash"}
 /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software/ncbi-blast-2.14.0+/bin/blastn \
 -query /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/Zoop_ASV.fasta \
@@ -528,3 +508,244 @@ head -2 ../output/Zoop_ASV.tab
 wc -l ../output/Zoop_ASV.tab
 ```
 These are species we expect to see - looks like blast worked!
+
+
+# Visualization
+
+## Filter Blast hits and merge tables
+
+merge Blast IDs with OTU table
+```{r, eval=TRUE}
+#change directory
+setwd("/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/output")
+
+#read ASV table into R
+Zoop_ASV<-read.table("Zoop_ASV.tab")
+
+#rename columns
+colnames(Zoop_ASV) = c("OTUNumber", "Species", "pident", "length","mismatch","gapopen","qstart","qend","sstart","send","evalue","bitscore")
+
+#merge tables by otu number
+read_table<-left_join(Zoop_ASV, seqtab.nochim_trans, by = join_by("OTUNumber" == "OTUNumber"))
+```
+Visualize the table
+```{r}
+datatable(read_table)
+```
+
+
+
+## Filter hits based on quality
+```{r, eval=TRUE}
+# remove ASV with sequences shorter than 300 bp
+read_table <- subset(read_table, read_table$length>300) 
+
+#remove ASV with pident <95%
+read_table <- subset(read_table, read_table$pident>95) 
+
+```
+
+Sum Sequences by Taxa
+```{r, eval=TRUE}
+#remove unneeded columns
+read_table_summed<- read_table[ -c(1,3:13) ]
+
+#remove prefix
+read_table_summed$Species <- sub(".*__", "", read_table_summed$Species)
+
+#summarize by species
+by_species <- read_table_summed %>%
+  group_by(Species)
+
+read_table_summed<-by_species %>%
+  summarise_all(sum)
+```
+
+
+## NMDS
+My code for this section is working in rstudio, but when I go to knit the document, I am getting an error in the NMDS step. I have added screenshots of the plots that result from the code in rstudio.
+
+Prep table for NMDS
+```{r}
+# transpose
+read_table_transposed <- as.data.frame(transpose(read_table_summed))
+#remove first row
+read_table_transposed <- as.data.frame(read_table_transposed[-1,]) 
+#convert to matrix
+community_matrix<-as.matrix(read_table_transposed)
+#convert to numeric matrix
+community_matrix<- matrix(as.numeric(community_matrix),   
+                  ncol = ncol(community_matrix))
+#convert to proportions
+community_matrix<-community_matrix/rowSums(community_matrix)
+#arcsine sqrt transformation
+community_matrix<-asin(sqrt(community_matrix))
+```
+
+Run NMDS
+```{r, eval=TRUE}
+#run NMDS
+NMDS=metaMDS(community_matrix,distance="bray",trymax=100)
+```
+```{r, eval=TRUE}
+stressplot(NMDS)
+plot(NMDS)
+NMDS
+```
+Make envrionmental table
+```{r, eval=TRUE}
+#export file names
+env <- as.data.frame(colnames(read_table_summed))
+env <- as.data.frame(env[-1,])
+#change column name
+colnames(env)[1] <- "file"
+#create year column
+env$year <- substr(env$file, 1, 4)
+#create month column
+env$month <- substr(env$file, 5, 7)
+#create station column
+env$station <- str_extract(env$file, "P12|P22|P28|P38|P402|P4|P8")
+#create run column
+env$run <- str_extract(env$file, "48samples|-P1|-P2")
+```
+
+extract scores
+```{r}
+data.scores = as.data.frame(scores(NMDS)$sites)
+#add environmental columns
+data.scores$station = env$station
+data.scores$year = env$year
+data.scores$month = env$month
+data.scores$run = env$run
+```
+
+Create station plot
+```{r}
+station_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) + 
+     geom_point(data = data.scores, aes(colour = station), size = 3, alpha = 0.5) + 
+     scale_colour_manual(values = c("orange", "steelblue","darkgreen","violet","red","darkblue","limegreen")) + 
+     theme(axis.title = element_text(size = 10, face = "bold", colour = "grey30"), 
+     panel.background = element_blank(), panel.border = element_rect(fill = NA, colour = "grey30"), 
+     axis.ticks = element_blank(), axis.text = element_blank(), legend.key = element_blank(), 
+     legend.title = element_text(size = 10, face = "bold", colour = "grey30"), 
+     legend.text = element_text(size = 9, colour = "grey30")) +
+     labs(colour = "Station")
+     
+station_plot
+
+```
+![](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/station_plot.png)
+There is quite a bit of overlap among stations, but you can see that some stations are distinct from one another. For example, P22 is different from P38, but P38 and P12 are very similar.
+
+Create year plot
+```{r}
+year_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) + 
+     geom_point(data = data.scores, aes(colour = year), size = 3, alpha = 0.5) + 
+     scale_colour_manual(values = c("orange", "steelblue")) + 
+     theme(axis.title = element_text(size = 10, face = "bold", colour = "grey30"), 
+     panel.background = element_blank(), panel.border = element_rect(fill = NA, colour = "grey30"), 
+     axis.ticks = element_blank(), axis.text = element_blank(), legend.key = element_blank(), 
+     legend.title = element_text(size = 10, face = "bold", colour = "grey30"), 
+     legend.text = element_text(size = 9, colour = "grey30")) +
+     labs(colour = "Year")
+     
+year_plot
+
+```
+![](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/year_plot.png)
+between these two years, there doesn't seem to be much difference
+
+Create month plot
+```{r}
+month_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) + 
+     geom_point(data = data.scores, aes(colour = month), size = 3, alpha = 0.5) + 
+     scale_colour_manual(values = c("orange", "steelblue","darkgreen")) + 
+     theme(axis.title = element_text(size = 10, face = "bold", colour = "grey30"), 
+     panel.background = element_blank(), panel.border = element_rect(fill = NA, colour = "grey30"), 
+     axis.ticks = element_blank(), axis.text = element_blank(), legend.key = element_blank(), 
+     legend.title = element_text(size = 10, face = "bold", colour = "grey30"), 
+     legend.text = element_text(size = 9, colour = "grey30")) +
+     labs(colour = "Month")
+     
+month_plot
+
+```
+![](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/month_plot.png)
+There seem to be some clear seasonal differences along axis 1 - April appears to be distinct
+
+Create run plot
+```{r}
+run_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) + 
+     geom_point(data = data.scores, aes(colour = run), size = 3, alpha = 0.5) + 
+     scale_colour_manual(values = c("orange", "steelblue","darkgreen")) + 
+     theme(axis.title = element_text(size = 10, face = "bold", colour = "grey30"), 
+     panel.background = element_blank(), panel.border = element_rect(fill = NA, colour = "grey30"), 
+     axis.ticks = element_blank(), axis.text = element_blank(), legend.key = element_blank(), 
+     legend.title = element_text(size = 10, face = "bold", colour = "grey30"), 
+     legend.text = element_text(size = 9, colour = "grey30")) +
+     labs(colour = "Run")
+     
+run_plot
+
+```
+![](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/run_plot.png)
+
+## Diversity Indices
+Here I am calculating the shannon's diversity index.
+```{r, eval=TRUE}
+#convert to matrix
+diversity<-as.matrix(read_table_transposed)
+#convert to numeric matrix
+diversity_matrix<- matrix(as.numeric(diversity),   
+                  ncol = ncol(diversity))
+#add in row and column labels
+colnames(diversity_matrix) <- colnames(diversity)
+rownames(diversity_matrix) <- rownames(diversity)
+```
+
+get shannon diversity index
+```{r, eval=TRUE}
+shannon_scores<-as.data.frame(diversity(diversity_matrix, index="shannon"))
+```
+
+add environment columns back in
+```{r, eval=TRUE}
+#change column name
+colnames(shannon_scores)[1] <- "shannon_index"
+#add environmental columns
+shannon_scores$station = env$station
+shannon_scores$year = env$year
+shannon_scores$month = env$month
+shannon_scores$run = env$run
+```
+
+make violin plot
+```{r, eval=TRUE}
+diversity<- ggviolin(shannon_scores, x = "station", y = "shannon_index",
+ add = "boxplot", fill = "station") 
+diversity
+```
+
+Overall, the highest diversity was seen at P22, which is the station located in the Strait of Juan de Fuca. This site is closest to the ocean, so it may contain inland taxa as well as more offshore taxa.
+
+
+## Taxa plot
+
+get the top 20 most abundant species
+```{r, eval=TRUE}
+species_sums <- as.data.frame(colSums(diversity_matrix))
+colnames(species_sums)[1] <- "abundance"
+species_sums$abundance<-as.numeric(species_sums$abundance)
+species_sums <- rownames_to_column(species_sums, "species")
+species_sums <-as.data.frame(species_sums[order(-species_sums$abundance),])
+
+#get top 20 species
+top_20_species <- head(species_sums, 20)
+```
+
+plot
+```{r, eval=TRUE}
+ggplot(top_20_species, aes(y=abundance, x=reorder(species, abundance))) + 
+    geom_bar(position="dodge", stat="identity")+ theme_bw()+coord_flip()+ylab("total reads")+xlab("species")
+```
+The samples were dominated by Calanus pacificus (a copepod) and Aegina citrea (a jellyfish). Other abundant species included eutonina indicans and Clytia gregaria, two other jellyfish. Other common copepods like Centropages abdonminalis and Metridia pacifica were also represented
