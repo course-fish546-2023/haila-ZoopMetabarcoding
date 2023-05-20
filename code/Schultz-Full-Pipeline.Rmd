@@ -5,6 +5,7 @@ output:
   html_document:
     toc: true
     toc_depth: 2
+    toc_float: true
 ---
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
@@ -17,6 +18,9 @@ knitr::opts_chunk$set(
   fig.align = "center" # Align plots to the center
 )
 ```
+#End Goal
+My end goal is to make several figures visualizing the metabarcoding data. One of them will look like the plot below (not actually my data). It will be a series of maps from different months and years showing pie charts of the top taxa identified in my samples. I am currently working on the code to do this mapping. 
+![End Goal Example](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/end_goal_example.png)
 # Project Summary
 
 The report is located here: https://rpubs.com/HailaSchultz/full-pipeline
@@ -447,7 +451,7 @@ Download the reference. The reference used here is from metazoogene and is the f
 ```{r, engine="bash"}
 #download from url
 cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data
-curl -O https://www.st.nmfs.noaa.gov/nauplius/media/metazoogene/atlas/data-src/MZGfasta-coi__MZGdbALL__o00__A.fasta
+curl -O https://www.st.nmfs.noaa.gov/copepod/collaboration/metazoogene/atlas/data-src/MZGfasta-coi__MZGdbALL__o07__B.fasta
 #unzip
 gunzip -k MZGfasta-coi__MZGdbALL__o00__A.fasta
 ```
@@ -497,6 +501,7 @@ Since we are looking at nucleotides, make sure you are using blastn.
 -query /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/Zoop_ASV.fasta \
 -db /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/blastdb/MZGfasta-coi__MZGdbALL__o00__A \
 -out /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/output/Zoop_ASV.tab \
+-evalue 1E-20 \
 -num_threads 8 \
 -max_target_seqs 1 \
 -outfmt 6
@@ -529,24 +534,25 @@ colnames(Zoop_ASV) = c("OTUNumber", "Species", "pident", "length","mismatch","ga
 
 #merge tables by otu number
 read_table<-left_join(Zoop_ASV, seqtab.nochim_trans, by = join_by("OTUNumber" == "OTUNumber"))
+datatable(read_table)
 ```
 Visualize part of the table here
 
 
 Filter hits
-```{r}
+```{r, eval=TRUE}
 # remove ASV with sequences shorter than 300 bp
-read_table <- subset(read_table, read_table$length>300) 
+read_table_sub <- subset(read_table, read_table$length>300) 
 
 #remove ASV with pident <95%
-read_table <- subset(read_table, read_table$pident>95) 
+read_table_sub2 <- subset(read_table_sub, read_table_sub$pident>95) 
 
 ```
 
 Sum Sequences by Taxa
-```{r}
+```{r, eval=TRUE}
 #remove unneeded columns
-read_table_summed<- read_table[ -c(1,3:13) ]
+read_table_summed<- read_table_sub2[ -c(1,3:13) ]
 
 #remove prefix
 read_table_summed$Species <- sub(".*__", "", read_table_summed$Species)
@@ -555,50 +561,58 @@ read_table_summed$Species <- sub(".*__", "", read_table_summed$Species)
 by_species <- read_table_summed %>%
   group_by(Species)
 
-read_table_summed<-by_species %>%
+read_table_species<-by_species %>%
   summarise_all(sum)
+
+datatable(read_table_species)
+
 ```
 
 
 ## NMDS
+```{r, eval=TRUE}
+# Transpose data
+read_table_transposed <- t(read_table_species)
+datatable(read_table_transposed)
+```
 
 Prep table for NMDS
-```{r}
-# transpose
-read_table_transposed <- transpose(read_table_summed)
+```{r, eval=TRUE}
 # get row and colnames in order
-colnames(read_table_transposed) <- rownames(read_table_summed)
-rownames(read_table_transposed) <- colnames(read_table_summed)
+rownames(read_table_transposed) <- colnames(read_table_species)
 #move first row to column names
-read_table_transposed<-row_to_names(read_table_transposed, 1, remove_rows_above = FALSE) 
+read_table_final<-row_to_names(read_table_transposed, 1, remove_rows_above = FALSE)
+```
+
+```{r, eval=TRUE}
 #convert to matrix
-community_matrix<-as.matrix(read_table_transposed)
+community_matrix<-as.matrix(read_table_final)
 #convert to numeric matrix
 community_matrix<- matrix(as.numeric(community_matrix),   
                   ncol = ncol(community_matrix))
 #convert to proportions
 community_matrix<-community_matrix/rowSums(community_matrix)
 #arcsine sqrt transformation
-community_matrix<-asin(sqrt(community_matrix))
+community_matrix_sqrt<-asin(sqrt(community_matrix))
 ```
 
 Run NMDS
-```{r}
+```{r, eval=TRUE}
 #run NMDS
-NMDS=metaMDS(community_matrix,distance="bray",trymax=100)
+NMDS=metaMDS(community_matrix_sqrt,distance="bray",trymax=100)
 ```
 
-```{r}
+```{r, eval=TRUE}
 stressplot(NMDS)
 plot(NMDS)
 NMDS
 ```
 Make envrionmental table
-```{r}
+```{r, eval=TRUE}
 #export file names
-env <- as.data.frame(row.names(read_table_transposed))
+env <- as.data.frame(row.names(read_table_final))
 #change column name
-colnames(env)[colnames(env) == "row.names(read_table_transposed)"] <- "file"
+colnames(env)[colnames(env) == "row.names(read_table_final)"] <- "file"
 
 #create year column
 env$year <- substr(env$file, 1, 4)
@@ -611,7 +625,7 @@ env$run <- str_extract(env$file, "48samples|-P1|-P2")
 ```
 
 extract scores
-```{r}
+```{r, eval=TRUE}
 data.scores = as.data.frame(scores(NMDS)$sites)
 #add environmental columns
 data.scores$station = env$station
@@ -621,7 +635,7 @@ data.scores$run = env$run
 ```
 
 create station plot
-```{r}
+```{r, eval=TRUE}
 station_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) + 
      geom_point(data = data.scores, aes(colour = station), size = 3, alpha = 0.5) + 
      scale_colour_manual(values = c("orange", "steelblue","darkgreen","violet","red","darkblue","limegreen")) + 
@@ -636,12 +650,12 @@ station_plot
 
 ```
 
-![](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/station_plot.png)
+
 There is quite a bit of overlap among stations, but you can see that some stations are distinct from one another. For example, P22 is different from P38, but P38 and P12 are very similar.
 
 create year plot
 
-```{r}
+```{r, eval=TRUE}
 year_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) + 
      geom_point(data = data.scores, aes(colour = year), size = 3, alpha = 0.5) + 
      scale_colour_manual(values = c("orange", "steelblue")) + 
@@ -655,11 +669,11 @@ year_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) +
 year_plot
 
 ```
-![](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/year_plot.png)
+
 between these two years, there doesn't seem to be much difference
 
 create month plot
-```{r}
+```{r, eval=TRUE}
 month_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) + 
      geom_point(data = data.scores, aes(colour = month), size = 3, alpha = 0.5) + 
      scale_colour_manual(values = c("orange", "steelblue","darkgreen")) + 
@@ -673,11 +687,11 @@ month_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) +
 month_plot
 
 ```
-![](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/month_plot.png)
+
 There seem to be some clear seasonal differences along axis 1 - April appears to be distinct
 
 create run plot
-```{r}
+```{r, eval=TRUE}
 run_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) + 
      geom_point(data = data.scores, aes(colour = run), size = 3, alpha = 0.5) + 
      scale_colour_manual(values = c("orange", "steelblue","darkgreen")) + 
@@ -691,13 +705,13 @@ run_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) +
 run_plot
 
 ```
-![](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/run_plot.png)
+
 
 ## Diversity Indices
 
-```{r}
+```{r, eval=TRUE}
 #convert to matrix
-diversity<-as.matrix(read_table_transposed)
+diversity<-as.matrix(read_table_final)
 #convert to numeric matrix
 diversity_matrix<- matrix(as.numeric(diversity),   
                   ncol = ncol(diversity))
@@ -707,12 +721,12 @@ rownames(diversity_matrix) <- rownames(diversity)
 ```
 
 get shannon diversity index
-```{r}
+```{r, eval=TRUE}
 shannon_scores<-as.data.frame(diversity(diversity_matrix, index="shannon"))
 ```
 
 add environment columns back in
-```{r}
+```{r, eval=TRUE}
 #change column name
 colnames(shannon_scores)[1] <- "shannon_index"
 #add environmental columns
@@ -723,33 +737,105 @@ shannon_scores$run = env$run
 ```
 
 make violin plot
-```{r}
+```{r, eval=TRUE}
 diversity<- ggviolin(shannon_scores, x = "station", y = "shannon_index",
  add = "boxplot", fill = "station") 
 diversity
 ```
-![](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/violin_plot.png)
+
 Overall, the highest diversity was seen at P22, which is the station located in the Strait of Juan de Fuca. This site is closest to the ocean, so it may contain inland taxa as well as more offshore taxa.
 
 
 ## Taxa plot
 
 get the top 20 most abundant species
-```{r}
-species_sums <- as.data.frame(colSums(diversity_matrix))
-colnames(species_sums)[1] <- "abundance"
-species_sums$abundance<-as.numeric(species_sums$abundance)
-species_sums <- rownames_to_column(species_sums, "species")
-species_sums <-as.data.frame(species_sums[order(-species_sums$abundance),])
+```{r, eval=TRUE}
+#convert to proportions
+diversity_prop<-diversity_matrix/rowSums(diversity_matrix)
+species_means <- as.data.frame(colMeans(diversity_prop))
+colnames(species_means)[1] <- "abundance"
+species_means$abundance<-as.numeric(species_means$abundance)
+species_means <- rownames_to_column(species_means, "species")
+species_means <-as.data.frame(species_means[order(-species_means$abundance),])
 
 #get top 20 species
-top_20_species <- head(species_sums, 20)
+top_20_species <- head(species_means, 20)
 ```
 
 plot
-```{r}
+```{r, eval=TRUE}
 ggplot(top_20_species, aes(y=abundance, x=reorder(species, abundance))) + 
-    geom_bar(position="dodge", stat="identity")+ theme_bw()+coord_flip()+ylab("total reads")+xlab("species")
+    geom_bar(position="dodge", stat="identity")+ theme_bw()+coord_flip()+ylab("Mean Proportion of Reads")+xlab("species")
 ```
-![](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/taxa_plot.png)
+
 The samples were dominated by Calanus pacificus (a copepod) and Aegina citrea (a jellyfish). Other abundant species included eutonina indicans and Clytia gregaria, two other jellyfish. Other common copepods like Centropages abdonminalis and Metridia pacifica were also represented
+
+## Plot Pie Charts on a Map
+
+Reformat data
+```{r}
+# convert format
+diversity_melt<-melt(diversity_matrix)
+#get list of top 20 species
+top_20<-as.list(top_20_species$species)
+#subset dataframe to only include top 20
+diversity_melt_top <- as.data.frame(diversity_melt[diversity_melt$Var2 %in% top_20,])
+#get proportions
+diversity_melt_prop<-diversity_melt_top  %>% 
+  mutate(freq = prop.table(value), .by = Var1)
+```
+Add latitude and longitude to data
+```{r}
+#read in latlong table
+latlong <- "/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/latlong.csv" 
+lat_long <- read.csv(latlong)
+#add latlong to env table
+env_lat_lon<-left_join(lat_long, env, by = join_by(Station == station))
+#add new environment table to data
+map_data<-left_join(env_lat_lon,diversity_melt_prop, by = join_by(file == Var1))
+#subset to April 2018
+map_data_sub<-map_data[map_data$month == 'APR', ]
+map_data_sub<-map_data_sub[map_data_sub$year == '2018', ]
+map_data_sub<-map_data_sub[map_data_sub$run == '48samples', ]
+```
+
+
+get google map
+```{r}
+library(RgoogleMaps)
+
+terrmap <- GetMap(zoom=9, size = c(700,
+900),center=c(lat=47.8,lon=-122.6),maptype= "satellite", destfile = "terrain.png") #lots of visual options, just like google maps: maptype = c("roadmap", "mobile", "satellite", "terrain", "hybrid", "mapmaker-roadmap", "mapmaker-hybrid")
+Puget_map<-PlotOnStaticMap(terrmap)
+```
+
+add pies
+```{r}
+library(mapplots)
+#convert x and y
+xy <- LatLon2XY.centered(terrmap,map_data_sub$Lat.deg, map_data_sub$Lon.deg, zoom = 9)
+map_data_sub$newX=xy$newX
+map_data_sub$newY=xy$newY
+
+# Loop over each row in the dataframe
+for (i in 1:nrow(map_data_sub)) {
+  # Get the current location, categories, and values
+  Stations <- map_data_sub$Station[i]
+  Species <- map_data_sub$Var2[[i]]
+  values <- map_data_sub$freq[[i]]
+  X <- map_data_sub$newX[[i]]
+  Y <- map_data_sub$newY[[i]]
+  
+  # Draw the pie chart for the current location
+  draw.pie(values, x=X, y=Y, radius = 20, labels = Species, location = Stations)
+}
+
+```
+
+
+
+
+
+
+
+
