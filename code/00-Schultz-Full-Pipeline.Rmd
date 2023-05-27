@@ -25,7 +25,7 @@ My end goal is to make several figures visualizing the metabarcoding data. One o
 
 # Project Summary
 
-The report is located here: https://rpubs.com/HailaSchultz/full-pipeline
+The report is located here: https://rpubs.com/HailaSchultz/full-pipeline-report
 
 The published Zenodo DOI is here: https://doi.org/10.5281/zenodo.7976362
 
