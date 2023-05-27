@@ -27,6 +27,8 @@ My end goal is to make several figures visualizing the metabarcoding data. One o
 
 The report is located here: https://rpubs.com/HailaSchultz/full-pipeline
 
+The published Zenodo DOI is here: https://doi.org/10.5281/zenodo.7976362
+
 This project utilizes metabarcoding and the LrCOI marker to taxonomically identify zooplankton samples from Washington Ocean Acidification Center Cruises. Samples were collected from seven stations spread throughout Puget Sound in April, July, and September 2018-2020. Zooplankton samples were collected using a 200 um net towed vertically from 10 meters from the bottom of the water column to the surface. A 5 ml subsample (settled volume) of each sample was homogenized, dried, and subsampled before being sent off to Ohio State University for library prep and sequencing.
 
 ![Map of the seven sites visited](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/woac_map.png)
