@@ -74,13 +74,14 @@ create checksums file for all fastq files in data folder
 ```{r, engine="bash", eval=TRUE, output.lines=4}
 cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/
 shasum ../data/fastq-files/*.gz > fastq_checksums.sha
-cat fastq_checksums.sha
+head fastq_checksums.sha
 ```
 
 check if files match original
 ```{r, engine="bash", eval=TRUE, output.lines=4}
 cd ../data
-shasum -c fastq_checksums.sha
+shasum -c fastq_checksums.sha > keys.txt
+head keys.txt
 ```
 
 
@@ -134,7 +135,7 @@ cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/output/raw-read-qc
 multiqc .
 ```
 
-![screenshot of multiqc mean qualit scores](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/raw-data_multiqc.png)
+![screenshot of multiqc mean quality scores](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/raw-data_multiqc.png)
 
 I then mad lists of the file names in order to process multiple files at once. I also specified the primer sequences used in this prject.
 ```{r, eval=TRUE, cache=TRUE}
@@ -219,7 +220,7 @@ rbind(FWD.ForwardReads = sapply(FWD.orients, primerHits, fn = fnFs.cut[[1]]),
     REV.ReverseReads = sapply(REV.orients, primerHits, fn = fnRs.cut[[1]]))
 
 ```
-There were a few reverse reads that were not trimmed, but overall it looks good
+There were a few reverse reads that were not trimmed, but overall it looks good.
 However, after trimming the primers, about half of the files ended up with zero data/reads. I think it is an issue with the read names. The error I get is: ERROR: Error in sequence file at unknown line: Reads are improperly paired. Read name 'M02815:67:000000000-KDDDG:1:1101:17448:1214 1:N:0:CGGAGCCT+GTAAGGAG' in file 1 does not match 'M02815:67:000000000-KDDDG:1:1101:20493:1232 2:N:0:CGTACTAG+CGTCTAAT' in file 2, etc.
 
 
@@ -381,7 +382,7 @@ dadaFs <- dada(derepFs, err=errF, multithread=TRUE)
 dadaRs <- dada(derepRs, err=errR, multithread=TRUE)
 ```
 
-##nMerge Paired Reads
+## Merge Paired Reads
 ```{r, eval=TRUE, cache=TRUE}
 mergers <- mergePairs(dadaFs, derepFs, dadaRs, derepRs, verbose=TRUE)
 # Inspect the merger data.frame from the first sample
@@ -399,7 +400,7 @@ eventually make histogram here
 table(nchar(getSequences(seqtab)))
 ```
 
-## remove chimeras
+## Remove chimeras
 ```{r, eval=TRUE}
 seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE, verbose=TRUE)
 ```
@@ -427,7 +428,7 @@ The step that creates the out table takes too long to run, so a screenshot of th
 
 # Blast
 
-## download software from NCBI
+## Download software from NCBI
 ```{r, engine="bash"}
 #change directory
 cd /Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/software
@@ -536,7 +537,7 @@ colnames(Zoop_ASV) = c("OTUNumber", "Species", "pident", "length","mismatch","ga
 
 #merge tables by otu number
 read_table<-left_join(Zoop_ASV, seqtab.nochim_trans, by = join_by("OTUNumber" == "OTUNumber"))
-datatable(read_table)
+datatable(read_table, fillContainer = T)
 ```
 Visualize part of the table here
 
@@ -566,7 +567,7 @@ by_species <- read_table_summed %>%
 read_table_species<-by_species %>%
   summarise_all(sum)
 
-datatable(read_table_species)
+datatable(read_table_species, fillContainer = T)
 
 ```
 
@@ -575,7 +576,7 @@ datatable(read_table_species)
 ```{r, eval=TRUE}
 # Transpose data
 read_table_transposed <- t(read_table_species)
-datatable(read_table_transposed)
+datatable(read_table_transposed, fillContainer = T)
 ```
 
 Prep table for NMDS
@@ -649,7 +650,8 @@ station_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) +
      labs(colour = "Station")
      
 station_plot
-
+setwd("/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/plots")
+ggsave(plot = station_plot, width = 5, height = 3, dpi = 300, filename = "station_plot.png")
 ```
 
 
@@ -669,7 +671,8 @@ year_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) +
      labs(colour = "Year")
      
 year_plot
-
+setwd("/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/plots")
+ggsave(plot = year_plot, width = 5, height = 3, dpi = 300, filename = "year_plot.png")
 ```
 
 between these two years, there doesn't seem to be much difference
@@ -687,7 +690,8 @@ month_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) +
      labs(colour = "Month")
      
 month_plot
-
+setwd("/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/plots")
+ggsave(plot = month_plot, width = 5, height = 3, dpi = 300, filename = "month_plot.png")
 ```
 
 There seem to be some clear seasonal differences along axis 1 - April appears to be distinct
@@ -705,7 +709,8 @@ run_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) +
      labs(colour = "Run")
      
 run_plot
-
+setwd("/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/plots")
+ggsave(plot = run_plot, width = 5, height = 3, dpi = 300, filename = "run_plot.png")
 ```
 
 
@@ -743,6 +748,8 @@ make violin plot
 diversity<- ggviolin(shannon_scores, x = "station", y = "shannon_index",
  add = "boxplot", fill = "station") 
 diversity
+setwd("/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/plots")
+ggsave(plot = diversity, width = 5, height = 3, dpi = 300, filename = "diversity.png")
 ```
 
 Overall, the highest diversity was seen at P22, which is the station located in the Strait of Juan de Fuca. This site is closest to the ocean, so it may contain inland taxa as well as more offshore taxa.
@@ -766,8 +773,12 @@ top_20_species <- head(species_means, 20)
 
 plot
 ```{r, eval=TRUE}
-ggplot(top_20_species, aes(y=abundance, x=reorder(species, abundance))) + 
+top20<-ggplot(top_20_species, aes(y=abundance, x=reorder(species, abundance))) + 
     geom_bar(position="dodge", stat="identity")+ theme_bw()+coord_flip()+ylab("Mean Proportion of Reads")+xlab("species")
+
+top20
+setwd("/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/plots")
+ggsave(plot = top20, width = 5, height = 3, dpi = 300, filename = "top20.png")
 ```
 
 The samples were dominated by Calanus pacificus (a copepod) and Aegina citrea (a jellyfish). Other abundant species included eutonina indicans and Clytia gregaria, two other jellyfish. Other common copepods like Centropages abdonminalis and Metridia pacifica were also represented
