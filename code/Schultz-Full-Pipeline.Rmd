@@ -18,9 +18,11 @@ knitr::opts_chunk$set(
   fig.align = "center" # Align plots to the center
 )
 ```
-#End Goal
+# End Goal
 My end goal is to make several figures visualizing the metabarcoding data. One of them will look like the plot below (not actually my data). It will be a series of maps from different months and years showing pie charts of the top taxa identified in my samples. I am currently working on the code to do this mapping. 
 ![End Goal Example](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/end_goal_example.png)
+
+
 # Project Summary
 
 The report is located here: https://rpubs.com/HailaSchultz/full-pipeline
@@ -801,7 +803,7 @@ map_data_sub<-map_data_sub[map_data_sub$run == '48samples', ]
 
 
 get google map
-```{r}
+```{r, eval=TRUE}
 library(RgoogleMaps)
 
 terrmap <- GetMap(zoom=9, size = c(700,
@@ -816,23 +818,31 @@ library(mapplots)
 xy <- LatLon2XY.centered(terrmap,map_data_sub$Lat.deg, map_data_sub$Lon.deg, zoom = 9)
 map_data_sub$newX=xy$newX
 map_data_sub$newY=xy$newY
-
+#dcast
+map_data_sub2<-dcast(map_data_sub, Station+newX+newY ~ Var2,value.var="freq")
+make.xyz <- function(x, y, z, category) {
+  # Assuming x, y, z, and category are vectors of equal length
+  # Create a list with x, y, and z components
+  xyz <- list(ap_data_sub$newX, map_data_sub$newY, z = map_data_sub$freq, map_data_sub$Var2)
+  return(xyz)
+}
+#convert 0 to 0.001
+map_data_sub2[, 4:23] <- abs(map_data_sub2[, 4:23]) + 0.001
 # Loop over each row in the dataframe
 for (i in 1:nrow(map_data_sub)) {
   # Get the current location, categories, and values
-  Stations <- map_data_sub$Station[i]
-  Species <- map_data_sub$Var2[[i]]
-  values <- map_data_sub$freq[[i]]
-  X <- map_data_sub$newX[[i]]
-  Y <- map_data_sub$newY[[i]]
-  
+  xyz <- make.xyz(map_data_sub$newX, map_data_sub$newY, z = map_data_sub$freq, map_data_sub$Var2)[[i]]
   # Draw the pie chart for the current location
-  draw.pie(values, x=X, y=Y, radius = 20, labels = Species, location = Stations)
+  add.pie(xyz$z, xyz$x, xyz$y)
 }
+
 
 ```
 
 
+```{r}
+xyz
+```
 
 
 
