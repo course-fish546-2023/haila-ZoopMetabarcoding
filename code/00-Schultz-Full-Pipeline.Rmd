@@ -18,9 +18,34 @@ knitr::opts_chunk$set(
   fig.align = "center" # Align plots to the center
 )
 ```
-# End Goal
-My end goal is to make several figures visualizing the metabarcoding data. One of them will look like the plot below (not actually my data). It will be a series of maps from different months and years showing pie charts of the top taxa identified in my samples. I am currently working on the code to do this mapping. 
-![End Goal Example](/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/screenshots/end_goal_example.png)
+load packages
+```{r, eval=TRUE}
+library(knitr)
+library(BiocManager)
+library(ShortRead)
+library("dada2")
+library(dplyr)
+library(janitor)
+library(vegan)
+library(data.table)
+library(ggplot2)
+library(ggpubr)
+library(dplyr)
+library(tidyverse)
+library(DT)
+library(RgoogleMaps)
+library(mapplots)
+```
+# End Product
+My primary end product is a table with species designations of ASVs and Read numbers for each species for each sample. This table can be used as the basis for any statistical analysis or plots to be made in the future.
+
+visualize read table
+```{r,eval=TRUE}
+final_table <- read.csv("/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/output/read_table.csv")
+datatable(final_table, options = list(scrollX = T,scrollY=T,pageLength = 10,
+  lengthMenu = c(10, 20,50,100)))
+```
+
 
 
 # Project Summary
@@ -43,23 +68,6 @@ Install dada2 package using BiocManager
 install.packages('ShortRead')
 install.packages("BiocManager")
 BiocManager::install("dada2")
-```
-
-load packages
-```{r, eval=TRUE}
-library(knitr)
-library(BiocManager)
-library(ShortRead)
-library("dada2")
-library(dplyr)
-library(janitor)
-library(vegan)
-library(data.table)
-library(ggplot2)
-library(ggpubr)
-library(dplyr)
-library(tidyverse)
-library(DT)
 ```
 
 
@@ -550,7 +558,7 @@ Filter hits
 read_table_sub <- subset(read_table, read_table$length>300) 
 
 #remove ASV with pident <95%
-read_table_sub2 <- subset(read_table_sub, read_table_sub$pident>95) 
+read_table_sub2 <- subset(read_table_sub, read_table_sub$pident>98) 
 
 ```
 
@@ -571,6 +579,10 @@ read_table_species<-by_species %>%
 
 datatable(read_table_species, fillContainer = T)
 
+```
+write read table to .csv
+```{r}
+write.csv(read_table_species, "/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/output/read_table.csv", row.names=FALSE)
 ```
 
 
@@ -638,18 +650,41 @@ data.scores$year = env$year
 data.scores$month = env$month
 data.scores$run = env$run
 ```
+make hulls
+```{r,eval=TRUE}
+P12 <- data.scores[data.scores$station == "P12", ][chull(data.scores[data.scores$station == 
+    "P12", c("NMDS1", "NMDS2")]), ]  
+P22 <- data.scores[data.scores$station == "P22", ][chull(data.scores[data.scores$station == 
+    "P22", c("NMDS1", "NMDS2")]), ] 
+P28 <- data.scores[data.scores$station == "P28", ][chull(data.scores[data.scores$station == 
+    "P28", c("NMDS1", "NMDS2")]), ]  
+P38 <- data.scores[data.scores$station == "P38", ][chull(data.scores[data.scores$station == 
+    "P38", c("NMDS1", "NMDS2")]), ]  
+P402 <- data.scores[data.scores$station == "P402", ][chull(data.scores[data.scores$station == 
+    "P402", c("NMDS1", "NMDS2")]), ]  
+P4 <- data.scores[data.scores$station == "P4", ][chull(data.scores[data.scores$station == 
+   "P4", c("NMDS1", "NMDS2")]), ]  
+P8 <- data.scores[data.scores$station == "P8", ][chull(data.scores[data.scores$station == 
+   "P8", c("NMDS1", "NMDS2")]), ]  
+hull.data <- rbind(P12,P22,P28,P38,P402,P4,P8)  
+hull.data
+```
 
-create station plot
+
 ```{r, eval=TRUE}
-station_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) + 
+
+station_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2))+
+  geom_polygon(data=hull.data,aes(x=NMDS1,y=NMDS2,fill=station,group=station),alpha=0.30) + 
      geom_point(data = data.scores, aes(colour = station), size = 3, alpha = 0.5) + 
-     scale_colour_manual(values = c("orange", "steelblue","darkgreen","violet","red","darkblue","limegreen")) + 
+     scale_colour_manual(values = c("orange", "steelblue","darkgreen","violet","red","darkblue","limegreen")) +
+  scale_fill_manual(values = c("orange", "steelblue","darkgreen","violet","red","darkblue","limegreen"))+
      theme(axis.title = element_text(size = 10, face = "bold", colour = "grey30"), 
      panel.background = element_blank(), panel.border = element_rect(fill = NA, colour = "grey30"), 
      axis.ticks = element_blank(), axis.text = element_blank(), legend.key = element_blank(), 
      legend.title = element_text(size = 10, face = "bold", colour = "grey30"), 
      legend.text = element_text(size = 9, colour = "grey30")) +
      labs(colour = "Station")
+  
      
 station_plot
 setwd("/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/plots")
@@ -660,11 +695,22 @@ ggsave(plot = station_plot, width = 5, height = 3, dpi = 300, filename = "statio
 There is quite a bit of overlap among stations, but you can see that some stations are distinct from one another. For example, P22 is different from P38, but P38 and P12 are very similar.
 
 create year plot
+make hulls
+```{r,eval=TRUE}
+y2018 <- data.scores[data.scores$year == "2018", ][chull(data.scores[data.scores$year == 
+    "2018", c("NMDS1", "NMDS2")]), ]  
+y2019 <- data.scores[data.scores$year == "2019", ][chull(data.scores[data.scores$year == 
+    "2019", c("NMDS1", "NMDS2")]), ]  
 
+hull.data.2 <- rbind(y2018,y2019)  
+hull.data.2
+```
 ```{r, eval=TRUE}
 year_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) + 
+  geom_polygon(data=hull.data.2,aes(x=NMDS1,y=NMDS2,fill=year,group=year),alpha=0.30)+
      geom_point(data = data.scores, aes(colour = year), size = 3, alpha = 0.5) + 
      scale_colour_manual(values = c("orange", "steelblue")) + 
+  scale_fill_manual(values = c("orange", "steelblue")) + 
      theme(axis.title = element_text(size = 10, face = "bold", colour = "grey30"), 
      panel.background = element_blank(), panel.border = element_rect(fill = NA, colour = "grey30"), 
      axis.ticks = element_blank(), axis.text = element_blank(), legend.key = element_blank(), 
@@ -680,10 +726,24 @@ ggsave(plot = year_plot, width = 5, height = 3, dpi = 300, filename = "year_plot
 between these two years, there doesn't seem to be much difference
 
 create month plot
+make hulls
+```{r,eval=TRUE}
+APR <- data.scores[data.scores$month == "APR", ][chull(data.scores[data.scores$month == 
+    "APR", c("NMDS1", "NMDS2")]), ]  
+JUL <- data.scores[data.scores$month == "JUL", ][chull(data.scores[data.scores$month == 
+    "JUL", c("NMDS1", "NMDS2")]), ]  
+SEP <- data.scores[data.scores$month == "SEP", ][chull(data.scores[data.scores$month == 
+    "SEP", c("NMDS1", "NMDS2")]), ]  
+
+hull.data.3 <- rbind(APR,JUL,SEP)  
+hull.data.3
+```
 ```{r, eval=TRUE}
 month_plot = ggplot(data = data.scores, aes(x = NMDS1, y = NMDS2)) + 
+  geom_polygon(data=hull.data.3,aes(x=NMDS1,y=NMDS2,fill=month,group=month,alpha=0.30))+ 
      geom_point(data = data.scores, aes(colour = month), size = 3, alpha = 0.5) + 
      scale_colour_manual(values = c("orange", "steelblue","darkgreen")) + 
+       scale_fill_manual(values = c("orange", "steelblue","darkgreen")) +
      theme(axis.title = element_text(size = 10, face = "bold", colour = "grey30"), 
      panel.background = element_blank(), panel.border = element_rect(fill = NA, colour = "grey30"), 
      axis.ticks = element_blank(), axis.text = element_blank(), legend.key = element_blank(), 
@@ -784,79 +844,6 @@ ggsave(plot = top20, width = 5, height = 3, dpi = 300, filename = "top20.png")
 ```
 
 The samples were dominated by Calanus pacificus (a copepod) and Aegina citrea (a jellyfish). Other abundant species included eutonina indicans and Clytia gregaria, two other jellyfish. Other common copepods like Centropages abdonminalis and Metridia pacifica were also represented
-
-## Plot Pie Charts on a Map
-
-Reformat data
-```{r}
-# convert format
-diversity_melt<-melt(diversity_matrix)
-#get list of top 20 species
-top_20<-as.list(top_20_species$species)
-#subset dataframe to only include top 20
-diversity_melt_top <- as.data.frame(diversity_melt[diversity_melt$Var2 %in% top_20,])
-#get proportions
-diversity_melt_prop<-diversity_melt_top  %>% 
-  mutate(freq = prop.table(value), .by = Var1)
-```
-Add latitude and longitude to data
-```{r}
-#read in latlong table
-latlong <- "/Users/hailaschultz/GitHub/haila-ZoopMetabarcoding/data/latlong.csv" 
-lat_long <- read.csv(latlong)
-#add latlong to env table
-env_lat_lon<-left_join(lat_long, env, by = join_by(Station == station))
-#add new environment table to data
-map_data<-left_join(env_lat_lon,diversity_melt_prop, by = join_by(file == Var1))
-#subset to April 2018
-map_data_sub<-map_data[map_data$month == 'APR', ]
-map_data_sub<-map_data_sub[map_data_sub$year == '2018', ]
-map_data_sub<-map_data_sub[map_data_sub$run == '48samples', ]
-```
-
-
-get google map
-```{r, eval=TRUE}
-library(RgoogleMaps)
-
-terrmap <- GetMap(zoom=9, size = c(700,
-900),center=c(lat=47.8,lon=-122.6),maptype= "satellite", destfile = "terrain.png") #lots of visual options, just like google maps: maptype = c("roadmap", "mobile", "satellite", "terrain", "hybrid", "mapmaker-roadmap", "mapmaker-hybrid")
-Puget_map<-PlotOnStaticMap(terrmap)
-```
-
-add pies
-```{r}
-library(mapplots)
-#convert x and y
-xy <- LatLon2XY.centered(terrmap,map_data_sub$Lat.deg, map_data_sub$Lon.deg, zoom = 9)
-map_data_sub$newX=xy$newX
-map_data_sub$newY=xy$newY
-#dcast
-map_data_sub2<-dcast(map_data_sub, Station+newX+newY ~ Var2,value.var="freq")
-make.xyz <- function(x, y, z, category) {
-  # Assuming x, y, z, and category are vectors of equal length
-  # Create a list with x, y, and z components
-  xyz <- list(ap_data_sub$newX, map_data_sub$newY, z = map_data_sub$freq, map_data_sub$Var2)
-  return(xyz)
-}
-#convert 0 to 0.001
-map_data_sub2[, 4:23] <- abs(map_data_sub2[, 4:23]) + 0.001
-# Loop over each row in the dataframe
-for (i in 1:nrow(map_data_sub)) {
-  # Get the current location, categories, and values
-  xyz <- make.xyz(map_data_sub$newX, map_data_sub$newY, z = map_data_sub$freq, map_data_sub$Var2)[[i]]
-  # Draw the pie chart for the current location
-  add.pie(xyz$z, xyz$x, xyz$y)
-}
-
-
-```
-
-
-```{r}
-xyz
-```
-
 
 
 

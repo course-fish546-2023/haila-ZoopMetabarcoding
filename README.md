@@ -4,7 +4,7 @@ This is the repository for my project analyzing metabarcoding data from zooplank
 
 This workflow was constructed and conducted using RStudio desktop on my local computer.
 
-The report for this pipeline is located here: https://rpubs.com/HailaSchultz/full-pipeline
+The report for this pipeline is located here: https://rpubs.com/HailaSchultz/full-pipeline-report
 Rmd files for each step are located in the code directory, but the Schultz-Full-Pipeline.Rmd includes all of the code needed. 
 
 ## Getting the data
